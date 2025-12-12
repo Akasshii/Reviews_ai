@@ -151,16 +151,16 @@ export const SettingsPage = () => {
 
         <Card padding="lg">
           <CardHeader>
-            <CardTitle>Опасная зона</CardTitle>
+            <CardTitle>Удалить аккаунт</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="settings-section">
               <div className="setting-item">
                 <div className="setting-info">
-                  <h4 className="setting-title">Удалить аккаунт</h4>
-                  <p className="setting-description">
+  
+                  <h4 className="setting-title">
                     Безвозвратное удаление аккаунта и всех данных
-                  </p>
+                  </h4>
                 </div>
                 <Button variant="danger" size="sm">
                   Удалить аккаунт

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
 import { BarChartIcon, TrendingUpIcon, StarIcon, FileTextIcon } from '../../shared/ui';
 import { StatsCard } from '../../widgets/stats-card';
@@ -7,6 +8,7 @@ import { ru } from 'date-fns/locale';
 import './DashboardPage.css';
 
 export const DashboardPage = () => {
+  const navigate = useNavigate();
   const stats = mockDashboardStats;
   const recentReports = mockReports.slice(0, 3);
 
@@ -89,7 +91,7 @@ export const DashboardPage = () => {
             <CardHeader>
               <div className="card-header-with-action">
                 <CardTitle>Последние отчеты</CardTitle>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
                   Смотреть все
                 </Button>
               </div>
@@ -117,7 +119,7 @@ export const DashboardPage = () => {
                         <span className="stat-mini-label">рейтинг</span>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/reports/${report.id}`)}>
                       Открыть
                     </Button>
                   </div>

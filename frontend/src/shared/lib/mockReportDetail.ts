@@ -1,0 +1,180 @@
+import type { Report, Review, CategoryStats } from '../types';
+
+const detailedReviews: Review[] = [
+  {
+    id: 'r1',
+    platform: 'yandex',
+    author: 'Анна К.',
+    rating: 5,
+    text: 'Отличное место! Прекрасный кофе и приятная атмосфера. Персонал очень вежливый и внимательный.',
+    date: new Date('2024-11-28'),
+    sentiment: 'positive',
+    categories: ['quality', 'service', 'atmosphere'],
+  },
+  {
+    id: 'r2',
+    platform: '2gis',
+    author: 'Михаил С.',
+    rating: 4,
+    text: 'Хороший кофе, но иногда приходится долго ждать в очереди. Цены приемлемые.',
+    date: new Date('2024-11-27'),
+    sentiment: 'positive',
+    categories: ['quality', 'service', 'price'],
+  },
+  {
+    id: 'r3',
+    platform: 'yandex',
+    author: 'Елена Д.',
+    rating: 3,
+    text: 'Средне. Цены завышены, качество обычное. Интерьер неплохой.',
+    date: new Date('2024-11-26'),
+    sentiment: 'neutral',
+    categories: ['price', 'quality', 'atmosphere'],
+  },
+  {
+    id: 'r4',
+    platform: '2gis',
+    author: 'Дмитрий В.',
+    rating: 2,
+    text: 'Разочарован. Кофе был холодным, обслуживание медленное. Не рекомендую.',
+    date: new Date('2024-11-25'),
+    sentiment: 'negative',
+    categories: ['quality', 'service'],
+  },
+  {
+    id: 'r5',
+    platform: 'yandex',
+    author: 'Ольга М.',
+    rating: 5,
+    text: 'Лучший кофе в городе! Всегда захожу сюда. Рекомендую всем! Очень чисто и уютно.',
+    date: new Date('2024-11-24'),
+    sentiment: 'positive',
+    categories: ['quality', 'cleanliness', 'atmosphere'],
+  },
+  {
+    id: 'r6',
+    platform: '2gis',
+    author: 'Сергей П.',
+    rating: 4,
+    text: 'Приятная атмосфера, вкусный кофе. Персонал дружелюбный. Немного дороговато.',
+    date: new Date('2024-11-23'),
+    sentiment: 'positive',
+    categories: ['atmosphere', 'quality', 'service', 'price'],
+  },
+  {
+    id: 'r7',
+    platform: 'yandex',
+    author: 'Мария Л.',
+    rating: 5,
+    text: 'Превосходное обслуживание! Всегда чисто, свежая выпечка, отличный кофе.',
+    date: new Date('2024-11-22'),
+    sentiment: 'positive',
+    categories: ['service', 'cleanliness', 'quality'],
+  },
+  {
+    id: 'r8',
+    platform: '2gis',
+    author: 'Алексей Н.',
+    rating: 3,
+    text: 'Обычная кофейня. Ничего особенного. Чисто, но цены высокие.',
+    date: new Date('2024-11-21'),
+    sentiment: 'neutral',
+    categories: ['cleanliness', 'price'],
+  },
+  {
+    id: 'r9',
+    platform: 'yandex',
+    author: 'Татьяна И.',
+    rating: 1,
+    text: 'Ужасно! Грязные столы, невкусный кофе, персонал грубый. Больше не приду.',
+    date: new Date('2024-11-20'),
+    sentiment: 'negative',
+    categories: ['cleanliness', 'quality', 'service'],
+  },
+  {
+    id: 'r10',
+    platform: '2gis',
+    author: 'Игорь Б.',
+    rating: 4,
+    text: 'Хорошее место для работы. WiFi быстрый, розетки есть. Кофе вкусный, но дороговат.',
+    date: new Date('2024-11-19'),
+    sentiment: 'positive',
+    categories: ['atmosphere', 'quality', 'price'],
+  },
+];
+
+const categoryStats: CategoryStats[] = [
+  {
+    category: 'quality',
+    count: 98,
+    averageRating: 4.3,
+    sentiment: { positive: 72, neutral: 18, negative: 8 },
+  },
+  {
+    category: 'service',
+    count: 86,
+    averageRating: 3.9,
+    sentiment: { positive: 58, neutral: 20, negative: 8 },
+  },
+  {
+    category: 'cleanliness',
+    count: 64,
+    averageRating: 4.1,
+    sentiment: { positive: 52, neutral: 8, negative: 4 },
+  },
+  {
+    category: 'atmosphere',
+    count: 78,
+    averageRating: 4.5,
+    sentiment: { positive: 68, neutral: 8, negative: 2 },
+  },
+  {
+    category: 'price',
+    count: 52,
+    averageRating: 3.2,
+    sentiment: { positive: 18, neutral: 22, negative: 12 },
+  },
+];
+
+export const mockReportDetail: Report = {
+  id: '1',
+  title: 'Отчет за ноябрь 2024',
+  period: {
+    start: new Date('2024-11-01'),
+    end: new Date('2024-11-30'),
+  },
+  platform: 'all',
+  status: 'ready',
+  createdAt: new Date('2024-12-01'),
+  stats: {
+    totalReviews: 156,
+    averageRating: 4.2,
+    positiveReviews: 98,
+    neutralReviews: 42,
+    negativeReviews: 16,
+  },
+  summary: 'За ноябрь 2024 года получено 156 отзывов со средним рейтингом 4.2. Клиенты высоко оценивают качество кофе (4.3) и атмосферу заведения (4.5). Основные проблемы связаны с ценовой политикой (3.2) и скоростью обслуживания в часы пик (3.9). Наблюдается положительная динамика по сравнению с предыдущим месяцем (+8.5%).',
+  insights: [
+    'Качество кофе - главное преимущество: 92% клиентов оценивают его положительно',
+    'Атмосфера заведения получает наивысшие оценки (4.5/5)',
+    'Основные жалобы связаны с долгим ожиданием в часы пик (12:00-14:00)',
+    'Цены воспринимаются как завышенные 23% посетителей',
+    'Чистота заведения стабильно отмечается как преимущество (81% положительных)',
+  ],
+  recommendations: [
+    'Увеличить количество персонала в часы пик (12:00-14:00) для сокращения времени ожидания',
+    'Внедрить систему предварительного заказа через мобильное приложение',
+    'Рассмотреть возможность введения программы лояльности для снижения чувствительности к ценам',
+    'Добавить больше посадочных мест для работы с ноутбуками',
+    'Провести обучение персонала по работе с недовольными клиентами',
+  ],
+  categoryStats,
+  reviews: detailedReviews,
+};
+
+export function getReportById(id: string): Report | undefined {
+  if (id === '1') {
+    return mockReportDetail;
+  }
+  return undefined;
+}

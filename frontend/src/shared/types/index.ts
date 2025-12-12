@@ -7,6 +7,8 @@ export interface User {
   createdAt: Date;
 }
 
+export type ReviewCategory = 'quality' | 'service' | 'cleanliness' | 'atmosphere' | 'price';
+
 export interface Review {
   id: string;
   platform: 'yandex' | '2gis';
@@ -15,6 +17,18 @@ export interface Review {
   text: string;
   date: Date;
   sentiment?: 'positive' | 'neutral' | 'negative';
+  categories?: ReviewCategory[];
+}
+
+export interface CategoryStats {
+  category: ReviewCategory;
+  count: number;
+  averageRating: number;
+  sentiment: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
 }
 
 export interface Report {
@@ -36,6 +50,9 @@ export interface Report {
   };
   insights: string[];
   recommendations: string[];
+  summary?: string;
+  categoryStats?: CategoryStats[];
+  reviews?: Review[];
 }
 
 export interface DashboardStats {

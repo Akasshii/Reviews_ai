@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
-import { PlusIcon, FilterIcon, DownloadIcon, FileTextIcon, CalendarIcon } from '../../shared/ui';
+import { PlusIcon, FilterIcon, DownloadIcon, FileTextIcon, CalendarIcon, StarIcon } from '../../shared/ui';
 import { mockReports } from '../../shared/lib/mockData';
 import type { Report } from '../../shared/types';
 import { format } from 'date-fns';
@@ -8,6 +9,7 @@ import { ru } from 'date-fns/locale';
 import './ReportsPage.css';
 
 export const ReportsPage = () => {
+  const navigate = useNavigate();
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [reports] = useState<Report[]>(mockReports);
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis'>('all');
@@ -24,6 +26,14 @@ export const ReportsPage = () => {
     acc[monthKey].push(report);
     return acc;
   }, {} as Record<string, Report[]>);
+
+  const getRatingColor = (rating: number) => {
+    if (rating >= 4.5) return '#10b981';
+    if (rating >= 4.0) return '#3b82f6';
+    if (rating >= 3.5) return '#f59e0b';
+    if (rating >= 3.0) return '#fb923c';
+    return '#ef4444';
+  };
 
   return (
     <div className="reports-page">
@@ -76,64 +86,84 @@ export const ReportsPage = () => {
         {Object.entries(groupedReports).map(([month, monthReports]) => (
           <div key={month} className="reports-month-group">
             <h2 className="month-title">{month}</h2>
-            <div className="reports-grid">
+            <div className="reports-list">
               {monthReports.map((report) => (
-                <Card key={report.id} hoverable padding="lg">
-                  <div className="report-card">
-                    <div className="report-card-header">
-                      <div className="report-card-icon">
-                        <FileTextIcon size={24} />
-                      </div>
-                      <span className={`report-status report-status--${report.status}`}>
-                        {report.status === 'ready' ? 'Готов' : report.status === 'generating' ? 'Генерируется...' : 'Ошибка'}
-                      </span>
-                    </div>
-
-                    <h3 className="report-card-title">{report.title}</h3>
-
-                    <div className="report-card-meta">
-                      <div className="report-meta-item">
-                        <CalendarIcon size={16} />
-                        <span>
-                          {format(report.period.start, 'd MMM', { locale: ru })} - {format(report.period.end, 'd MMM', { locale: ru })}
-                        </span>
-                      </div>
-                      <div className="report-meta-item">
-                        <span className="platform-badge">
-                          {report.platform === 'all' ? 'Все платформы' : report.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
-                        </span>
+                <Card key={report.id} hoverable padding="none" className="report-card-wrapper">
+                  <div className="report-card-new" onClick={() => navigate(`/reports/${report.id}`)}>
+                    <div className="report-card-left">
+                      <div
+                        className="report-rating-circle"
+                        style={{
+                          backgroundColor: `${getRatingColor(report.stats.averageRating)}15`,
+                          color: getRatingColor(report.stats.averageRating),
+                        }}
+                      >
+                        <span className="report-rating-value">{report.stats.averageRating.toFixed(1)}</span>
+                        <StarIcon size={18} color={getRatingColor(report.stats.averageRating)} />
                       </div>
                     </div>
 
-                    <div className="report-card-stats">
-                      <div className="report-stat">
-                        <span className="report-stat-value">{report.stats.totalReviews}</span>
-                        <span className="report-stat-label">отзывов</span>
+                    <div className="report-card-main">
+                      <div className="report-card-header-new">
+                        <div className="report-card-title-section">
+                          <h3 className="report-card-title-new">{report.title}</h3>
+                          <span className={`report-status-badge report-status-badge--${report.status}`}>
+                            {report.status === 'ready' ? 'Готов' : report.status === 'generating' ? 'Генерируется...' : 'Ошибка'}
+                          </span>
+                        </div>
+                        <div className="report-card-meta-new">
+                          <CalendarIcon size={14} />
+                          <span>
+                            {format(report.period.start, 'd MMM', { locale: ru })} - {format(report.period.end, 'd MMM yyyy', { locale: ru })}
+                          </span>
+                          <span className="meta-separator">•</span>
+                          <span className="platform-tag">
+                            {report.platform === 'all' ? 'Все платформы' : report.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="report-stat">
-                        <span className="report-stat-value">{report.stats.averageRating.toFixed(1)}</span>
-                        <span className="report-stat-label">средний балл</span>
+
+                      <div className="report-card-stats-row">
+                        <div className="report-stat-inline">
+                          <span className="stat-inline-label">Отзывов:</span>
+                          <span className="stat-inline-value">{report.stats.totalReviews}</span>
+                        </div>
+                        <div className="report-stat-inline stat-inline--positive">
+                          <span className="stat-inline-label">Позитивные:</span>
+                          <span className="stat-inline-value">{report.stats.positiveReviews}</span>
+                        </div>
+                        <div className="report-stat-inline stat-inline--neutral">
+                          <span className="stat-inline-label">Нейтральные:</span>
+                          <span className="stat-inline-value">{report.stats.neutralReviews}</span>
+                        </div>
+                        <div className="report-stat-inline stat-inline--negative">
+                          <span className="stat-inline-label">Негативные:</span>
+                          <span className="stat-inline-value">{report.stats.negativeReviews}</span>
+                        </div>
                       </div>
-                      <div className="report-stat">
-                        <span className="report-stat-value">{report.stats.positiveReviews}</span>
-                        <span className="report-stat-label">позитивных</span>
+
+                      <div className="report-card-insights-preview">
+                        <p className="insights-preview-text">{report.insights[0]}</p>
                       </div>
                     </div>
 
-                    <div className="report-card-insights">
-                      <h4 className="insights-title">Ключевые инсайты:</h4>
-                      <ul className="insights-list">
-                        {report.insights.slice(0, 2).map((insight, index) => (
-                          <li key={index}>{insight}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="report-card-actions">
-                      <Button variant="primary" fullWidth>
-                        Открыть отчет
+                    <div className="report-card-actions-new">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/reports/${report.id}`);
+                        }}
+                      >
+                        Открыть
                       </Button>
-                      <Button variant="outline" icon={<DownloadIcon size={18} />}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={<DownloadIcon size={16} />}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         PDF
                       </Button>
                     </div>
