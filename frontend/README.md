@@ -1,73 +1,120 @@
-# React + TypeScript + Vite
+# Reviews AI - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Современное веб-приложение для автоматического сбора и анализа отзывов с Яндекс.Карт и 2ГИС.
 
-Currently, two official plugins are available:
+## 🚀 Технологии
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19** - UI библиотека
+- **TypeScript** - типизация
+- **Vite** - сборщик
+- **React Router** - роутинг
+- **Date-fns** - работа с датами
+- **FSD Architecture** - архитектура проекта
 
-## React Compiler
+## 📁 Структура проекта (FSD)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+src/
+├── app/                    # Инициализация приложения
+│   ├── layouts/           # Layouts
+│   ├── providers/         # Провайдеры (роутер, etc.)
+│   └── styles/            # Глобальные стили
+├── pages/                 # Страницы приложения
+│   ├── login/            # Страница авторизации
+│   ├── dashboard/        # Главная панель
+│   ├── reports/          # Список отчетов
+│   ├── profile/          # Профиль пользователя
+│   └── settings/         # Настройки
+├── widgets/              # Составные блоки
+│   ├── header/          # Шапка приложения
+│   ├── sidebar/         # Боковое меню
+│   └── stats-card/      # Карточка статистики
+├── features/            # Функциональные возможности
+│   ├── auth/           # Авторизация
+│   └── report-generator/ # Генерация отчетов
+├── entities/            # Бизнес-сущности
+│   ├── user/           # Пользователь
+│   ├── report/         # Отчет
+│   └── review/         # Отзыв
+└── shared/             # Переиспользуемые модули
+    ├── ui/            # UI компоненты
+    ├── lib/           # Вспомогательные функции
+    ├── types/         # Типы TypeScript
+    └── config/        # Конфигурация
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🎨 Компоненты UI
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Button** - кнопки с различными вариантами (primary, secondary, outline, ghost, danger)
+- **Card** - карточки для контента
+- **Input** - поля ввода
+- **Icon** - SVG иконки
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 🔥 Возможности
+
+- ✅ Авторизация (демо режим)
+- ✅ Dashboard с статистикой
+- ✅ Управление отчетами
+- ✅ Фильтрация по платформам
+- ✅ Профиль пользователя
+- ✅ Настройки системы
+- ✅ Адаптивный дизайн
+
+## 🛠 Установка и запуск
+
+```bash
+# Установка зависимостей
+npm install
+
+# Запуск dev сервера
+npm run dev
+
+# Сборка для продакшена
+npm run build
+
+# Предпросмотр production сборки
+npm run preview
 ```
+
+## 🎯 Demo данные
+
+Для входа используйте любой email и пароль.
+Приложение использует mock данные для демонстрации функционала.
+
+## 📝 Особенности реализации
+
+- **FSD архитектура** - четкое разделение слоев
+- **TypeScript** - полная типизация
+- **CSS переменные** - легкая кастомизация темы
+- **Responsive Design** - адаптивность под все устройства
+- **Mock данные** - готовые данные для демонстрации
+
+## 🎨 Цветовая схема
+
+Проект использует современную цветовую схему:
+- Primary: `#6366f1` (индиго)
+- Secondary: `#8b5cf6` (фиолетовый)
+- Success: `#10b981` (зеленый)
+- Warning: `#f59e0b` (оранжевый)
+- Error: `#ef4444` (красный)
+
+## 📱 Страницы
+
+1. **Login** - Страница авторизации
+2. **Dashboard** - Главная страница со статистикой
+3. **Reports** - Список всех отчетов с фильтрацией
+4. **Profile** - Профиль пользователя
+5. **Settings** - Настройки системы
+
+## 🚧 Roadmap
+
+- [ ] Интеграция с реальным API
+- [ ] Реальная генерация отчетов с AI
+- [ ] Экспорт отчетов в PDF
+- [ ] Уведомления в реальном времени
+- [ ] Темная тема
+- [ ] Мультиязычность
+
+---
+
+Сделано с ❤️ для автоматизации работы с отзывами
