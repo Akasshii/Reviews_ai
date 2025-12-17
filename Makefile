@@ -34,7 +34,7 @@ db-create:
 
 db-schema:
 	@echo "📋 Применяю схему базы данных..."
-	psql -U slava -d reviews_ai -f backend/src/infrastructure/database/schema.sql
+	psql -U slava -d reviews_ai -f schema.sql
 
 db-seed:
 	@echo "🌱 Заполняю базу тестовыми данными..."

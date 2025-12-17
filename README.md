@@ -56,7 +56,7 @@ cd optimistic-wescoff
 
 # Создайте базу данных PostgreSQL
 createdb reviews_ai -U slava
-psql -U slava -d reviews_ai -f backend/src/infrastructure/database/schema.sql
+psql -U slava -d reviews_ai -f schema.sql
 ```
 
 ### 2. Backend (Go)
@@ -216,7 +216,7 @@ MIT
 createdb reviews_ai -U slava
 
 # 2. Примените схему
-psql -U slava -d reviews_ai -f backend/src/infrastructure/database/schema.sql
+psql -U slava -d reviews_ai -f schema.sql
 
 # 3. Запустите backend
 cd backend-go && go run cmd/api/main.go
