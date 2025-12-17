@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
 import { StarIcon, CalendarIcon, DownloadIcon, BarChartIcon } from '../../shared/ui';
-import { getReportById } from '../../shared/lib/mockReportDetail';
+import { reportApi } from '../../shared/api/reportApi';
+import { normalizeReport } from '../../shared/lib/reportHelpers';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import type { ReviewCategory } from '../../shared/types';
+import type { ReviewCategory, Report } from '../../shared/types';
 import './ReportDetailPage.css';
 
 const categoryLabels: Record<ReviewCategory, string> = {
@@ -27,8 +28,52 @@ const categoryColors: Record<ReviewCategory, string> = {
 export const ReportDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const report = id ? getReportById(id) : undefined;
+  const [report, setReport] = useState<Report | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'summary' | 'detailed'>('summary');
+
+  useEffect(() => {
+    if (id) {
+      loadReport(id);
+    }
+  }, [id]);
+
+  const loadReport = async (reportId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await reportApi.getReportById(reportId);
+      const normalized = normalizeReport(data);
+      setReport(normalized);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки отчёта');
+      console.error('Failed to load report:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="report-detail-page">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <p>Загрузка отчёта...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="report-detail-page">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <p style={{ color: '#ef4444', marginBottom: '20px' }}>{error}</p>
+          <Button onClick={() => navigate('/reports')}>Вернуться к отчетам</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!report) {
     return (

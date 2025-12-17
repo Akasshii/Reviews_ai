@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Button, Input, Card } from '../../shared/ui';
 import { MailIcon, LockIcon } from '../../shared/ui';
+import { authApi } from '../../shared/api/authApi';
 import './LoginPage.css';
 
 interface LoginPageProps {
@@ -8,18 +9,29 @@ interface LoginPageProps {
 }
 
 export const LoginPage = ({ onLogin }: LoginPageProps) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('demo@reviews.ai');
+  const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const response = await authApi.login({ email, password });
+
+      // Сохраняем токен в localStorage
+      localStorage.setItem('token', response.token);
+
+      // Вызываем callback для обновления состояния
       onLogin();
-    }, 1000);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка входа');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,6 +46,12 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
+            {error && (
+              <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
             <Input
               type="email"
               label="Email"
