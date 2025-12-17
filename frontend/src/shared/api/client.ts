@@ -25,22 +25,36 @@ class ApiClient {
 
     if (requiresAuth) {
       const token = this.getToken();
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      if (!token) {
+        throw new Error('No token provided');
       }
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...fetchConfig,
-      headers,
-    });
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...fetchConfig,
+        headers,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          // If response is not JSON, use status text
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Network error');
     }
-
-    return response.json();
   }
 
   async get<T>(endpoint: string, requiresAuth = false): Promise<T> {

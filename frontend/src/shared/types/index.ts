@@ -34,14 +34,28 @@ export interface CategoryStats {
 export interface Report {
   id: string;
   title: string;
-  period: {
+  period?: {
     start: Date;
     end: Date;
   };
-  platform: 'yandex' | '2gis' | 'all';
-  status: 'generating' | 'ready' | 'error';
+  periodStart?: Date;
+  periodEnd?: Date;
+  platform?: 'yandex' | '2gis' | 'all';
+  status?: 'generating' | 'ready' | 'error';
   createdAt: Date;
-  stats: {
+  totalReviews: number;
+  averageRating: number;
+  positiveReviews: number;
+  neutralReviews: number;
+  negativeReviews: number;
+  ratingDistribution?: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+  stats?: {
     totalReviews: number;
     averageRating: number;
     positiveReviews: number;

@@ -1,0 +1,55 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Go
+backend-go/bin/
+backend-go/*.exe
+backend-go/*.dll
+backend-go/*.so
+backend-go/*.dylib
+backend-go/vendor/
+backend-go/.idea/
+backend-go/.vscode/
+
+# Node.js / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+
+# Node backend (old)
+backend/node_modules/
+backend/dist/
+backend/build/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+*.cover
+*.test
+*.out
+
+# Temporary files
+tmp/
+temp/
+*.tmp
