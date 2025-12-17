@@ -1,5 +1,12 @@
 import { apiClient } from './client';
-import { Report } from '../types';
+import type { Report } from '../types';
+
+export interface CreateReportDTO {
+  title: string;
+  periodStart: string;
+  periodEnd: string;
+  yandexUrl: string;
+}
 
 export const reportApi = {
   getReports: async (): Promise<Report[]> => {
@@ -8,5 +15,13 @@ export const reportApi = {
 
   getReportById: async (id: string): Promise<Report> => {
     return apiClient.get<Report>(`/reports/${id}`, true);
+  },
+
+  createReport: async (data: CreateReportDTO): Promise<Report> => {
+    return apiClient.post<Report>('/reports', data, true);
+  },
+
+  deleteReport: async (id: string): Promise<void> => {
+    return apiClient.delete<void>(`/reports/${id}`, true);
   },
 };

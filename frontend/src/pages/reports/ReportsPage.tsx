@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
-import { PlusIcon, FilterIcon, DownloadIcon, FileTextIcon, CalendarIcon, StarIcon } from '../../shared/ui';
-import { mockReports } from '../../shared/lib/mockData';
+import { PlusIcon, FilterIcon, DownloadIcon, FileTextIcon, CalendarIcon, StarIcon, TrashIcon } from '../../shared/ui';
+import { reportApi } from '../../shared/api/reportApi';
+import { normalizeReport } from '../../shared/lib/reportHelpers';
 import type { Report } from '../../shared/types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -11,15 +12,59 @@ import './ReportsPage.css';
 export const ReportsPage = () => {
   const navigate = useNavigate();
   const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [reports] = useState<Report[]>(mockReports);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis'>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await reportApi.getReports();
+      // Защита от null - если backend вернул null, используем пустой массив
+      const safeData = Array.isArray(data) ? data : [];
+      const normalized = safeData.map(normalizeReport);
+      setReports(normalized);
+    } catch (err) {
+      setError('Ошибка загрузки отчётов');
+      console.error('Failed to load reports:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!window.confirm('Вы уверены, что хотите удалить этот отчёт?')) {
+      return;
+    }
+
+    try {
+      setDeletingId(reportId);
+      await reportApi.deleteReport(reportId);
+      setReports(reports.filter(r => r.id !== reportId));
+    } catch (err: any) {
+      alert('Ошибка при удалении отчёта: ' + (err.message || 'Неизвестная ошибка'));
+      console.error('Failed to delete report:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const filteredReports = reports.filter(
     (report) => selectedPlatform === 'all' || report.platform === selectedPlatform
   );
 
   const groupedReports = filteredReports.reduce((acc, report) => {
-    const monthKey = format(report.createdAt, 'LLLL yyyy', { locale: ru });
+    const createdAt = new Date(report.createdAt);
+    const monthKey = format(createdAt, 'LLLL yyyy', { locale: ru });
     if (!acc[monthKey]) {
       acc[monthKey] = [];
     }
@@ -34,6 +79,27 @@ export const ReportsPage = () => {
     if (rating >= 3.0) return '#fb923c';
     return '#ef4444';
   };
+
+  if (loading) {
+    return (
+      <div className="reports-page">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <p>Загрузка отчётов...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="reports-page">
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <p style={{ color: '#ef4444' }}>{error}</p>
+          <Button onClick={loadReports} style={{ marginTop: '20px' }}>Попробовать снова</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="reports-page">
@@ -83,11 +149,26 @@ export const ReportsPage = () => {
       </div>
 
       <div className="reports-content">
-        {Object.entries(groupedReports).map(([month, monthReports]) => (
-          <div key={month} className="reports-month-group">
-            <h2 className="month-title">{month}</h2>
-            <div className="reports-list">
-              {monthReports.map((report) => (
+        {filteredReports.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <p style={{ fontSize: '18px', color: '#666', marginBottom: '20px' }}>
+              У вас пока нет отчётов
+            </p>
+            <Button
+              variant="primary"
+              size="lg"
+              icon={<PlusIcon size={20} />}
+              onClick={() => setShowGenerateModal(true)}
+            >
+              Создать первый отчёт
+            </Button>
+          </div>
+        ) : (
+          Object.entries(groupedReports).map(([month, monthReports]) => (
+            <div key={month} className="reports-month-group">
+              <h2 className="month-title">{month}</h2>
+              <div className="reports-list">
+                {monthReports.map((report) => (
                 <Card key={report.id} hoverable padding="none" className="report-card-wrapper">
                   <div className="report-card-new" onClick={() => navigate(`/reports/${report.id}`)}>
                     <div className="report-card-left">
@@ -161,10 +242,12 @@ export const ReportsPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        icon={<DownloadIcon size={16} />}
-                        onClick={(e) => e.stopPropagation()}
+                        icon={<TrashIcon size={16} />}
+                        onClick={(e) => handleDeleteReport(report.id, e)}
+                        disabled={deletingId === report.id}
+                        style={{ color: '#ef4444', borderColor: '#ef4444' }}
                       >
-                        PDF
+                        {deletingId === report.id ? 'Удаление...' : 'Удалить'}
                       </Button>
                     </div>
                   </div>
@@ -172,23 +255,50 @@ export const ReportsPage = () => {
               ))}
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
 
       {showGenerateModal && (
-        <GenerateReportModal onClose={() => setShowGenerateModal(false)} />
+        <GenerateReportModal
+          onClose={() => setShowGenerateModal(false)}
+          onSuccess={loadReports}
+        />
       )}
     </div>
   );
 };
 
-const GenerateReportModal = ({ onClose }: { onClose: () => void }) => {
-  const [platform, setPlatform] = useState<'all' | 'yandex' | '2gis'>('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
+  const [title, setTitle] = useState('');
+  const [yandexUrl, setYandexUrl] = useState('https://yandex.com/maps/org/chaykovsky_park_kultury_i_otdykha/204693811778/reviews/');
+  const [startDate, setStartDate] = useState('2025-07-01');
+  const [endDate, setEndDate] = useState('2025-12-20');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGenerate = () => {
-    onClose();
+  const handleGenerate = async () => {
+    if (!title || !yandexUrl || !startDate || !endDate) {
+      setError('Заполните все поля');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      await reportApi.createReport({
+        title,
+        yandexUrl,
+        periodStart: new Date(startDate).toISOString(),
+        periodEnd: new Date(endDate).toISOString(),
+      });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Ошибка создания отчёта');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -200,31 +310,34 @@ const GenerateReportModal = ({ onClose }: { onClose: () => void }) => {
           </CardHeader>
           <CardContent>
             <div className="modal-form">
-              <div className="form-group">
-                <label className="form-label">Платформа</label>
-                <div className="platform-selector">
-                  <Button
-                    variant={platform === 'all' ? 'primary' : 'outline'}
-                    onClick={() => setPlatform('all')}
-                    fullWidth
-                  >
-                    Все платформы
-                  </Button>
-                  <Button
-                    variant={platform === 'yandex' ? 'primary' : 'outline'}
-                    onClick={() => setPlatform('yandex')}
-                    fullWidth
-                  >
-                    Яндекс.Карты
-                  </Button>
-                  <Button
-                    variant={platform === '2gis' ? 'primary' : 'outline'}
-                    onClick={() => setPlatform('2gis')}
-                    fullWidth
-                  >
-                    2ГИС
-                  </Button>
+              {error && (
+                <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '16px' }}>
+                  {error}
                 </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Название отчёта</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Например: Анализ за декабрь 2024"
+                  className="date-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">URL Яндекс.Карт</label>
+                <input
+                  type="text"
+                  value={yandexUrl}
+                  onChange={(e) => setYandexUrl(e.target.value)}
+                  placeholder="https://yandex.com/maps/org/..."
+                  className="date-input"
+                  style={{ width: '100%' }}
+                />
               </div>
 
               <div className="form-group">
@@ -247,11 +360,11 @@ const GenerateReportModal = ({ onClose }: { onClose: () => void }) => {
               </div>
 
               <div className="modal-actions">
-                <Button variant="outline" onClick={onClose} fullWidth>
+                <Button variant="outline" onClick={onClose} fullWidth disabled={loading}>
                   Отмена
                 </Button>
-                <Button variant="primary" onClick={handleGenerate} fullWidth>
-                  Создать отчет
+                <Button variant="primary" onClick={handleGenerate} fullWidth disabled={loading}>
+                  {loading ? 'Создание...' : 'Создать отчет'}
                 </Button>
               </div>
             </div>
