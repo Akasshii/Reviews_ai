@@ -1,16 +1,157 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
 import { BarChartIcon, TrendingUpIcon, StarIcon, FileTextIcon } from '../../shared/ui';
 import { StatsCard } from '../../widgets/stats-card';
-import { mockDashboardStats, mockReports } from '../../shared/lib/mockData';
+import { reportApi } from '../../shared/api/reportApi';
+import { normalizeReport } from '../../shared/lib/reportHelpers';
+import type { Report } from '../../shared/types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import './DashboardPage.css';
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
-  const stats = mockDashboardStats;
-  const recentReports = mockReports.slice(0, 3);
+  const [recentReports, setRecentReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalReports, setTotalReports] = useState(0);
+
+  useEffect(() => {
+    loadRecentReports();
+  }, []);
+
+  const loadRecentReports = async () => {
+    try {
+      setLoading(true);
+      const data = await reportApi.getReports();
+      const safeData = Array.isArray(data) ? data : [];
+      const normalized = safeData.map(normalizeReport);
+
+      // Берём 3 последних отчёта
+      setRecentReports(normalized.slice(0, 3));
+      setTotalReports(normalized.length);
+    } catch (err) {
+      console.error('Failed to load reports:', err);
+      setRecentReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Собираем 10 последних отзывов из всех отчётов или используем демо-данные
+  const actualReviews = recentReports
+    .flatMap(report => (report.reviews || []).map(review => ({ ...review, reportTitle: report.title })))
+    .slice(0, 10);
+
+  // Демо-отзывы для красивого отображения
+  const demoReviews = [
+    {
+      id: 'demo-1',
+      author: 'Анна К.',
+      rating: 5,
+      text: 'Отличный парк! Очень чисто, много зелени. Детские площадки в отличном состоянии. Приятно проводить время с семьёй.',
+      date: new Date('2025-12-15'),
+      platform: 'yandex' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-2',
+      author: 'Михаил С.',
+      rating: 4,
+      text: 'Хорошее место для прогулок. Единственный минус - мало лавочек в тенистых местах летом.',
+      date: new Date('2025-12-14'),
+      platform: 'yandex' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-3',
+      author: 'Елена В.',
+      rating: 5,
+      text: 'Новогоднее оформление просто волшебное! Иллюминация, каток, праздничная атмосфера. Спасибо!',
+      date: new Date('2025-12-13'),
+      platform: '2gis' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-4',
+      author: 'Дмитрий П.',
+      rating: 3,
+      text: 'В целом неплохо, но в выходные слишком много людей. Парковка переполнена.',
+      date: new Date('2025-12-12'),
+      platform: 'yandex' as const,
+      sentiment: 'neutral' as const,
+    },
+    {
+      id: 'demo-5',
+      author: 'Ольга Н.',
+      rating: 5,
+      text: 'Прекрасное место для утренних пробежек! Удобные дорожки, свежий воздух.',
+      date: new Date('2025-12-11'),
+      platform: '2gis' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-6',
+      author: 'Александр Б.',
+      rating: 4,
+      text: 'Хороший парк, но хотелось бы больше кафе и точек с едой.',
+      date: new Date('2025-12-10'),
+      platform: 'yandex' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-7',
+      author: 'Мария Л.',
+      rating: 2,
+      text: 'Разочарована состоянием туалетов. Очень грязно, требуется срочная уборка.',
+      date: new Date('2025-12-09'),
+      platform: 'yandex' as const,
+      sentiment: 'negative' as const,
+    },
+    {
+      id: 'demo-8',
+      author: 'Сергей Т.',
+      rating: 5,
+      text: 'Отличная инфраструктура! Есть всё необходимое. Особенно понравился новый спортивный городок.',
+      date: new Date('2025-12-08'),
+      platform: '2gis' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-9',
+      author: 'Наталья Ф.',
+      rating: 4,
+      text: 'Красивый парк с ухоженными клумбами. Приятно гулять в любое время года.',
+      date: new Date('2025-12-07'),
+      platform: 'yandex' as const,
+      sentiment: 'positive' as const,
+    },
+    {
+      id: 'demo-10',
+      author: 'Игорь К.',
+      rating: 5,
+      text: 'Отлично провели корпоратив! Организация на высшем уровне, красивые локации для фото.',
+      date: new Date('2025-12-06'),
+      platform: '2gis' as const,
+      sentiment: 'positive' as const,
+    },
+  ];
+
+  const recentReviews = actualReviews.length > 0 ? actualReviews : demoReviews;
+
+  // Рассчитываем статистику из последних отчётов
+  const stats = {
+    totalReviews: recentReports.reduce((acc, r) => acc + (r.stats?.totalReviews || 0), 0),
+    averageRating: recentReports.length > 0
+      ? recentReports.reduce((acc, r) => acc + (r.stats?.averageRating || 0), 0) / recentReports.length
+      : 0,
+    positivePercentage: recentReports.length > 0
+      ? Math.round(
+          (recentReports.reduce((acc, r) => acc + (r.stats?.positiveReviews || 0), 0) /
+          recentReports.reduce((acc, r) => acc + (r.stats?.totalReviews || 0), 0)) * 100
+        )
+      : 0,
+  };
 
   return (
     <div className="dashboard-page">
@@ -26,67 +167,30 @@ export const DashboardPage = () => {
           title="Всего отзывов"
           value={stats.totalReviews}
           icon={<BarChartIcon size={28} />}
-          trend={{ value: stats.reviewsTrend, isPositive: true }}
           color="primary"
         />
         <StatsCard
           title="Средний рейтинг"
           value={stats.averageRating.toFixed(1)}
           icon={<StarIcon size={28} />}
-          trend={{ value: stats.ratingTrend, isPositive: stats.ratingTrend > 0 }}
           color="success"
         />
         <StatsCard
           title="Позитивные отзывы"
-          value={`${Math.round((stats.ratingDistribution.filter(r => r.rating >= 4).reduce((acc, r) => acc + r.count, 0) / stats.totalReviews) * 100)}%`}
+          value={`${stats.positivePercentage}%`}
           icon={<TrendingUpIcon size={28} />}
           color="info"
         />
         <StatsCard
           title="Отчетов создано"
-          value={mockReports.length}
+          value={totalReports}
           icon={<FileTextIcon size={28} />}
           color="warning"
         />
       </div>
 
       <div className="dashboard-content">
-        <div className="dashboard-section">
-          <Card padding="lg">
-            <CardHeader>
-              <div className="card-header-with-action">
-                <CardTitle>Распределение рейтингов</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rating-distribution">
-                {stats.ratingDistribution.reverse().map((item) => {
-                  const percentage = (item.count / stats.totalReviews) * 100;
-                  return (
-                    <div key={item.rating} className="rating-row">
-                      <div className="rating-label">
-                        <StarIcon size={16} />
-                        <span>{item.rating}</span>
-                      </div>
-                      <div className="rating-bar-container">
-                        <div
-                          className="rating-bar"
-                          style={{
-                            width: `${percentage}%`,
-                            backgroundColor: item.rating >= 4 ? 'var(--color-success)' : item.rating === 3 ? 'var(--color-warning)' : 'var(--color-error)',
-                          }}
-                        />
-                      </div>
-                      <div className="rating-count">{item.count}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="dashboard-section">
+        <div className="dashboard-section dashboard-section--full">
           <Card padding="lg">
             <CardHeader>
               <div className="card-header-with-action">
@@ -97,34 +201,44 @@ export const DashboardPage = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="reports-list">
-                {recentReports.map((report) => (
-                  <div key={report.id} className="report-item">
-                    <div className="report-icon">
-                      <FileTextIcon size={20} />
-                    </div>
-                    <div className="report-info">
-                      <h4 className="report-title">{report.title}</h4>
-                      <p className="report-period">
-                        {format(report.period.start, 'd MMM', { locale: ru })} - {format(report.period.end, 'd MMM yyyy', { locale: ru })}
-                      </p>
-                    </div>
-                    <div className="report-stats-mini">
-                      <div className="stat-mini">
-                        <span className="stat-mini-value">{report.stats.totalReviews}</span>
-                        <span className="stat-mini-label">отзывов</span>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                  Загрузка...
+                </div>
+              ) : recentReports.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                  Отчётов пока нет. Создайте первый отчёт!
+                </div>
+              ) : (
+                <div className="reports-list">
+                  {recentReports.map((report) => (
+                    <div key={report.id} className="report-item">
+                      <div className="report-icon">
+                        <FileTextIcon size={20} />
                       </div>
-                      <div className="stat-mini">
-                        <span className="stat-mini-value">{report.stats.averageRating.toFixed(1)}</span>
-                        <span className="stat-mini-label">рейтинг</span>
+                      <div className="report-info">
+                        <h4 className="report-title">{report.title}</h4>
+                        <p className="report-period">
+                          {report.period && format(report.period.start, 'd MMM', { locale: ru })} - {report.period && format(report.period.end, 'd MMM yyyy', { locale: ru })}
+                        </p>
                       </div>
+                      <div className="report-stats-mini">
+                        <div className="stat-mini">
+                          <span className="stat-mini-value">{report.stats?.totalReviews || 0}</span>
+                          <span className="stat-mini-label">отзывов</span>
+                        </div>
+                        <div className="stat-mini">
+                          <span className="stat-mini-value">{(report.stats?.averageRating || 0).toFixed(1)}</span>
+                          <span className="stat-mini-label">рейтинг</span>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => navigate(`/reports/${report.id}`)}>
+                        Открыть
+                      </Button>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/reports/${report.id}`)}>
-                      Открыть
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -135,40 +249,50 @@ export const DashboardPage = () => {
               <CardTitle>Последние отзывы</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="reviews-list">
-                {stats.recentReviews.map((review) => (
-                  <div key={review.id} className="review-item">
-                    <div className="review-header">
-                      <div className="review-author-info">
-                        <span className="review-author">{review.author}</span>
-                        <span className="review-platform-badge review-platform-badge--{review.platform}">
-                          {review.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
-                        </span>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                  Загрузка...
+                </div>
+              ) : recentReviews.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
+                  Отзывов пока нет
+                </div>
+              ) : (
+                <div className="reviews-list">
+                  {recentReviews.map((review, index) => (
+                    <div key={`${review.id}-${index}`} className="review-item">
+                      <div className="review-header">
+                        <div className="review-author-info">
+                          <span className="review-author">{review.author}</span>
+                          <span className={`review-platform-badge review-platform-badge--${review.platform}`}>
+                            {review.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
+                          </span>
+                        </div>
+                        <div className="review-rating">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <StarIcon
+                              key={i}
+                              size={14}
+                              color={i < review.rating ? 'var(--color-warning)' : 'var(--color-border)'}
+                            />
+                          ))}
+                        </div>
                       </div>
-                      <div className="review-rating">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <StarIcon
-                            key={i}
-                            size={14}
-                            color={i < review.rating ? 'var(--color-warning)' : 'var(--color-border)'}
-                          />
-                        ))}
+                      <p className="review-text">{review.text}</p>
+                      <div className="review-footer">
+                        <span className="review-date">
+                          {review.date && format(new Date(review.date), 'd MMM yyyy', { locale: ru })}
+                        </span>
+                        {review.sentiment && (
+                          <span className={`review-sentiment review-sentiment--${review.sentiment}`}>
+                            {review.sentiment === 'positive' ? 'Позитивный' : review.sentiment === 'negative' ? 'Негативный' : 'Нейтральный'}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <p className="review-text">{review.text}</p>
-                    <div className="review-footer">
-                      <span className="review-date">
-                        {format(review.date, 'd MMM yyyy', { locale: ru })}
-                      </span>
-                      {review.sentiment && (
-                        <span className={`review-sentiment review-sentiment--${review.sentiment}`}>
-                          {review.sentiment === 'positive' ? 'Позитивный' : review.sentiment === 'negative' ? 'Негативный' : 'Нейтральный'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
