@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "db:init": "ts-node src/infrastructure/database/init-db.ts",
     "db:seed": "ts-node src/infrastructure/database/seed.ts",
-    "db:setup": "npm run db:init && npm run db:seed"
+    "db:init:prod": "node dist/infrastructure/database/init-db.js",
+    "db:seed:prod": "node dist/infrastructure/database/seed.js",
+    "db:setup": "npm run db:init:prod && npm run db:seed:prod"
   },
   "keywords": [],
   "author": "",
