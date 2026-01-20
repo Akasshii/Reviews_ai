@@ -1,0 +1,32 @@
+databases:
+  - name: reviews-ai-db
+    databaseName: reviews_ai
+    user: reviews_user
+    plan: free
+    region: frankfurt
+
+services:
+  - type: web
+    name: reviews-ai-backend
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: npm install && npm run build && npm run db:setup
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reviews-ai-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        value: "*"
