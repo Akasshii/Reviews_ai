@@ -29,8 +29,9 @@ dotenv.config();
 const app = express();
 
 // Middleware
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(s => s.trim()),
   credentials: true,
 }));
 app.use(express.json());
