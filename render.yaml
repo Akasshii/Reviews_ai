@@ -6,20 +6,20 @@ databases:
     region: frankfurt
 
 services:
-  # Go Backend (основной)
+  # Node.js Backend
   - type: web
     name: reviews-ai-backend
     runtime: docker
     plan: free
     region: frankfurt
-    rootDir: backend-go
+    rootDir: backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:
       - key: PORT
-        value: 10000
-      - key: GIN_MODE
-        value: release
+        value: 3001
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: reviews-ai-db
@@ -27,7 +27,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
-        value: 168h
+        value: 7d
       - key: CORS_ORIGIN
         value: "*"
       - key: OPENROUTER_API_KEY
