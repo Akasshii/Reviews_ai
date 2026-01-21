@@ -13,6 +13,8 @@ import { GetUserUseCase } from './application/use-cases/user/GetUserUseCase';
 import { UpdateUserUseCase } from './application/use-cases/user/UpdateUserUseCase';
 import { GetReportsUseCase } from './application/use-cases/report/GetReportsUseCase';
 import { GetReportByIdUseCase } from './application/use-cases/report/GetReportByIdUseCase';
+import { CreateReportUseCase } from './application/use-cases/report/CreateReportUseCase';
+import { DeleteReportUseCase } from './application/use-cases/report/DeleteReportUseCase';
 
 // Controllers
 import { AuthController } from './presentation/controllers/AuthController';
@@ -46,10 +48,17 @@ const getUserUseCase = new GetUserUseCase(userRepository);
 const updateUserUseCase = new UpdateUserUseCase(userRepository);
 const getReportsUseCase = new GetReportsUseCase(reportRepository);
 const getReportByIdUseCase = new GetReportByIdUseCase(reportRepository);
+const createReportUseCase = new CreateReportUseCase(reportRepository);
+const deleteReportUseCase = new DeleteReportUseCase(reportRepository);
 
 const authController = new AuthController(loginUseCase, registerUseCase);
 const userController = new UserController(getUserUseCase, updateUserUseCase);
-const reportController = new ReportController(getReportsUseCase, getReportByIdUseCase);
+const reportController = new ReportController(
+  getReportsUseCase,
+  getReportByIdUseCase,
+  createReportUseCase,
+  deleteReportUseCase
+);
 
 // Routes
 app.use('/api/auth', createAuthRoutes(authController));
