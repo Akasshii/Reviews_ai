@@ -1,4 +1,4 @@
-import { IReportRepository } from '../../domain/repositories/IReportRepository';
+import { IReportRepository, CreateFullReportDTO } from '../../domain/repositories/IReportRepository';
 import { Report, CreateReportDTO, Review, CategoryStats } from '../../domain/entities/Report';
 import { pool } from '../database/db';
 
@@ -58,6 +58,97 @@ export class ReportRepository implements IReportRepository {
     );
 
     return this.mapToEntity(result.rows[0]);
+  }
+
+  async createFull(data: CreateFullReportDTO): Promise<Report> {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // 1. Create report
+      const reportResult = await client.query(
+        `INSERT INTO reports (
+          id, user_id, title, period_start, period_end,
+          summary, insights, recommendations,
+          total_reviews, average_rating,
+          positive_reviews, neutral_reviews, negative_reviews,
+          rating_distribution
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        RETURNING *`,
+        [
+          data.id,
+          data.userId,
+          data.title,
+          data.periodStart,
+          data.periodEnd,
+          data.summary,
+          data.insights,
+          data.recommendations,
+          data.totalReviews,
+          data.averageRating,
+          data.positiveReviews,
+          data.neutralReviews,
+          data.negativeReviews,
+          JSON.stringify(data.ratingDistribution),
+        ]
+      );
+
+      // 2. Create reviews
+      for (const review of data.reviews) {
+        await client.query(
+          `INSERT INTO reviews (
+            id, report_id, author, rating, text, date, source, categories, sentiment
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            review.id,
+            data.id,
+            review.author,
+            review.rating,
+            review.text,
+            review.date,
+            review.source,
+            review.categories,
+            review.sentiment,
+          ]
+        );
+      }
+
+      // 3. Create category stats
+      for (const stat of data.categoryStats) {
+        await client.query(
+          `INSERT INTO category_stats (
+            report_id, category, count, average_rating, positive, neutral, negative
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            data.id,
+            stat.category,
+            stat.count,
+            stat.averageRating,
+            stat.sentiment.positive,
+            stat.sentiment.neutral,
+            stat.sentiment.negative,
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Return full report
+      const report = this.mapToEntity(reportResult.rows[0]);
+      report.reviews = data.reviews;
+      report.categoryStats = data.categoryStats;
+
+      return report;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async delete(id: string): Promise<boolean> {
