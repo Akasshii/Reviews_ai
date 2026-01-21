@@ -19,22 +19,31 @@ type Config struct {
 }
 
 func NewPostgresDB() (*sql.DB, error) {
-	config := Config{
-		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     getEnv("DB_PORT", "5432"),
-		User:     getEnv("DB_USER", "slava"),
-		Password: getEnv("DB_PASSWORD", ""),
-		DBName:   getEnv("DB_NAME", "reviews_ai"),
-		SSLMode:  getEnv("DB_SSLMODE", "disable"),
-	}
-
 	var connStr string
-	if config.Password == "" {
-		connStr = fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
-			config.Host, config.Port, config.User, config.DBName, config.SSLMode)
+
+	// Check for DATABASE_URL first (used by Render and other PaaS)
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		connStr = databaseURL
+		log.Println("Using DATABASE_URL for database connection")
 	} else {
-		connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
+		// Fall back to individual environment variables
+		config := Config{
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnv("DB_PORT", "5432"),
+			User:     getEnv("DB_USER", "slava"),
+			Password: getEnv("DB_PASSWORD", ""),
+			DBName:   getEnv("DB_NAME", "reviews_ai"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		}
+
+		if config.Password == "" {
+			connStr = fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s",
+				config.Host, config.Port, config.User, config.DBName, config.SSLMode)
+		} else {
+			connStr = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+				config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
+		}
+		log.Println("Using individual DB env vars for database connection")
 	}
 
 	db, err := sql.Open("postgres", connStr)
