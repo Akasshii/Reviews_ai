@@ -106,13 +106,24 @@ func (p *YandexParser) parseReviewsInternal(ctx context.Context, url string, opt
 
 	// Log sample date texts for debugging
 	if len(rawReviews) > 0 {
-		sampleCount := 3
+		sampleCount := 10
 		if len(rawReviews) < sampleCount {
 			sampleCount = len(rawReviews)
 		}
+		emptyDateCount := 0
+		for i := 0; i < len(rawReviews); i++ {
+			if rawReviews[i].DateText == "" {
+				emptyDateCount++
+			}
+		}
+		log.Printf("[YandexParser] Date stats: %d total, %d with empty dateText", len(rawReviews), emptyDateCount)
 		for i := 0; i < sampleCount; i++ {
 			parsed := parseRelativeDate(rawReviews[i].DateText)
-			log.Printf("[YandexParser] Sample date[%d]: text=%q parsed=%s", i, rawReviews[i].DateText, parsed.Format("2006-01-02"))
+			parsedStr := "UNKNOWN"
+			if !parsed.IsZero() {
+				parsedStr = parsed.Format("2006-01-02")
+			}
+			log.Printf("[YandexParser] Sample date[%d]: text=%q parsed=%s", i, rawReviews[i].DateText, parsedStr)
 		}
 		if !opts.PeriodStart.IsZero() || !opts.PeriodEnd.IsZero() {
 			log.Printf("[YandexParser] Date filter: %s — %s", opts.PeriodStart.Format("2006-01-02"), opts.PeriodEnd.Format("2006-01-02"))
@@ -124,9 +135,35 @@ func (p *YandexParser) parseReviewsInternal(ctx context.Context, url string, opt
 	source := string(entity.SourceYandex)
 	skippedBefore := 0
 	skippedAfter := 0
+	skippedUnknownDate := 0
+	skippedDuplicates := 0
+	seenTexts := make(map[string]bool)
+
+	hasDateFilter := !opts.PeriodStart.IsZero() || !opts.PeriodEnd.IsZero()
 
 	for _, raw := range rawReviews {
+		// Deduplicate by text content
+		textKey := strings.TrimSpace(raw.Text)
+		if len(textKey) > 100 {
+			textKey = textKey[:100] // use first 100 chars as key
+		}
+		if seenTexts[textKey] {
+			skippedDuplicates++
+			continue
+		}
+		seenTexts[textKey] = true
+
 		reviewDate := parseRelativeDate(raw.DateText)
+
+		// Skip reviews with unparseable dates when date filter is active
+		if reviewDate.IsZero() {
+			if hasDateFilter {
+				skippedUnknownDate++
+				continue
+			}
+			// No date filter — use current time as fallback
+			reviewDate = time.Now()
+		}
 
 		if !opts.PeriodStart.IsZero() && reviewDate.Before(opts.PeriodStart) {
 			skippedBefore++
@@ -151,7 +188,7 @@ func (p *YandexParser) parseReviewsInternal(ctx context.Context, url string, opt
 		}
 	}
 
-	log.Printf("[YandexParser] Returning %d reviews (skipped: %d before period, %d after period)", len(result), skippedBefore, skippedAfter)
+	log.Printf("[YandexParser] Returning %d reviews (skipped: %d before period, %d after period, %d unknown date, %d duplicates)", len(result), skippedBefore, skippedAfter, skippedUnknownDate, skippedDuplicates)
 	return result, nil
 }
 
@@ -336,157 +373,103 @@ type rawReview struct {
 }
 
 // extractReviewsFromDOM runs JavaScript to extract all review data from the rendered page.
+// Selectors are based on actual Yandex Maps DOM structure (2025-2026).
 func (p *YandexParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, error) {
 	extractJS := `
 	(function() {
 		const results = [];
 
-		// Strategy 1: Find review cards by known class patterns
-		const reviewSelectors = [
-			'[class*="business-reviews-card-view__review"]',
-			'[class*="business-review-view"]',
-			'[class*="orgpage-reviews-card"]',
-			'[class*="review-card"]',
+		// Find review cards — use .business-review-view__info as primary (exact card container)
+		// Each review card has this wrapper containing author, rating, text, date
+		const cardSelectors = [
+			'.business-review-view__info',
 			'[itemprop="review"]',
-			'[data-review-id]',
-			'[class*="reviews-card"]'
+			'[data-review-id]'
 		];
 
 		let reviewElements = [];
-		for (const sel of reviewSelectors) {
+		for (const sel of cardSelectors) {
 			const els = document.querySelectorAll(sel);
-			if (els.length > reviewElements.length) {
+			if (els.length > 0) {
 				reviewElements = Array.from(els);
+				break; // use first selector that finds cards
 			}
+		}
+
+		// Fallback: if no exact match, try broader selectors but filter to actual cards
+		if (reviewElements.length === 0) {
+			const candidates = document.querySelectorAll('[class*="business-reviews-card-view__review"], [class*="orgpage-reviews-card"], [class*="review-card"]');
+			reviewElements = Array.from(candidates);
 		}
 
 		for (const el of reviewElements) {
 			const review = {};
 
-			// Extract author
-			const authorSelectors = [
-				'[class*="business-review-view__author"] [class*="name"]',
-				'[class*="review-author"]',
-				'[itemprop="author"]',
-				'[class*="author-name"]',
-				'[class*="reviewer-name"]',
-				'a[class*="user"]'
-			];
-			for (const sel of authorSelectors) {
-				const authorEl = el.querySelector(sel);
-				if (authorEl && authorEl.textContent.trim()) {
-					review.author = authorEl.textContent.trim();
-					break;
-				}
-			}
+			// 1. AUTHOR — use itemprop="name" inside author block (most reliable)
+			const nameEl = el.querySelector('[itemprop="name"]') ||
+				el.querySelector('.business-review-view__author-name a span') ||
+				el.querySelector('.business-review-view__author-name a');
+			review.author = nameEl ? nameEl.textContent.trim() : '';
 			if (!review.author) {
-				// Fallback: find first link or span that looks like a name
-				const links = el.querySelectorAll('a, span');
-				for (const link of links) {
-					const text = link.textContent.trim();
-					if (text && text.length > 1 && text.length < 50 && !text.match(/^\d/) && !text.includes('отзыв')) {
-						review.author = text;
-						break;
-					}
-				}
+				// Fallback: first link in author container
+				const authorLink = el.querySelector('.business-review-view__author-name a, [class*="author"] a');
+				if (authorLink) review.author = authorLink.textContent.trim();
 			}
 			if (!review.author) review.author = 'Аноним';
 
-			// Extract rating by counting filled stars
-			const starsSelectors = [
-				'[class*="business-rating-badge-view__star"]',
-				'[class*="rating-badge-view__star"]',
-				'[class*="inline-stars"] [class*="star"]',
-				'[class*="star-icon"]',
-				'[class*="rating"] svg',
-				'[class*="stars"] span'
-			];
+			// 2. RATING — use meta itemprop="ratingValue" (exact value)
 			let rating = 0;
-			for (const sel of starsSelectors) {
-				const stars = el.querySelectorAll(sel);
-				if (stars.length > 0) {
-					for (const star of stars) {
-						const cls = star.className || '';
-						const fill = star.getAttribute('fill') || '';
-						const style = star.getAttribute('style') || '';
-						// Filled star detection: class contains "side_full" / "_full" / "_active" / yellow color
-						if (cls.includes('_full') || cls.includes('_active') || cls.includes('_filled') ||
-							cls.includes('side_full') ||
-							fill === '#ffa000' || fill === '#FFA000' || fill.includes('ffa') ||
-							style.includes('ffa000') || style.includes('FFA000') ||
-							star.querySelector('[fill="#FFA000"], [fill="#ffa000"]')) {
-							rating++;
-						}
-					}
-					if (rating > 0) break;
+			const ratingMeta = el.querySelector('meta[itemprop="ratingValue"]');
+			if (ratingMeta) {
+				rating = Math.round(parseFloat(ratingMeta.getAttribute('content') || '0'));
+			}
+			// Fallback: aria-label on stars container "Rating N Out of 5"
+			if (rating === 0) {
+				const starsDiv = el.querySelector('[aria-label*="Rating"], [aria-label*="рейтинг"], [aria-label*="Оценка"]');
+				if (starsDiv) {
+					const m = (starsDiv.getAttribute('aria-label') || '').match(/(\d)/);
+					if (m) rating = parseInt(m[1]);
 				}
 			}
-			// Try aria-label or title with rating
+			// Fallback: count filled stars by class _full
 			if (rating === 0) {
-				const ratingEl = el.querySelector('[class*="rating"], [aria-label*="оценк"], [aria-label*="рейтинг"]');
-				if (ratingEl) {
-					const label = ratingEl.getAttribute('aria-label') || ratingEl.getAttribute('title') || ratingEl.textContent;
-					const match = label.match(/(\d)/);
-					if (match) rating = parseInt(match[1]);
-				}
+				const fullStars = el.querySelectorAll('.business-rating-badge-view__star._full, [class*="rating-badge-view__star"]._full');
+				if (fullStars.length > 0) rating = fullStars.length;
 			}
 			review.rating = rating || 5;
 
-			// Extract text
-			const textSelectors = [
-				'[class*="business-review-view__body-text"]',
-				'[class*="review-text"]',
-				'[class*="review-body"]',
-				'[itemprop="description"]',
-				'[class*="comment-text"]',
-				'[class*="review-comment"]'
-			];
-			for (const sel of textSelectors) {
-				const textEl = el.querySelector(sel);
-				if (textEl && textEl.textContent.trim()) {
-					review.text = textEl.textContent.trim();
-					break;
-				}
+			// 3. TEXT — use itemprop="reviewBody" (clean review text)
+			const bodyEl = el.querySelector('[itemprop="reviewBody"]') ||
+				el.querySelector('.business-review-view__body');
+			if (bodyEl) {
+				// Prefer text inside spoiler-view__text-container (avoids "Read more" buttons)
+				const spoiler = bodyEl.querySelector('.spoiler-view__text-container');
+				review.text = spoiler ? spoiler.textContent.trim() : bodyEl.textContent.trim();
 			}
 			if (!review.text) {
-				// Fallback: largest text block in the review card
-				const spans = el.querySelectorAll('span, div, p');
-				let longestText = '';
-				for (const span of spans) {
-					const text = span.textContent.trim();
-					if (text.length > longestText.length && text.length > 20) {
-						longestText = text;
-					}
-				}
-				review.text = longestText;
+				// Fallback: any element with review-text class
+				const textEl = el.querySelector('[class*="review-text"], [class*="review-body"], [class*="comment-text"]');
+				if (textEl) review.text = textEl.textContent.trim();
 			}
 			if (!review.text) continue; // Skip reviews without text
 
-			// Extract date
-			const dateSelectors = [
-				'[class*="business-review-view__date"]',
-				'[class*="review-date"]',
-				'[class*="review-time"]',
-				'[itemprop="datePublished"]',
-				'[class*="date"]',
-				'span[class*="time"]'
-			];
-			for (const sel of dateSelectors) {
-				const dateEl = el.querySelector(sel);
-				if (dateEl) {
-					const text = dateEl.textContent.trim();
-					const dt = dateEl.getAttribute('datetime') || dateEl.getAttribute('content');
-					review.dateText = dt || text;
-					if (review.dateText) break;
-				}
+			// 4. DATE — use meta itemprop="datePublished" (ISO format, most reliable)
+			const dateMeta = el.querySelector('meta[itemprop="datePublished"]');
+			if (dateMeta) {
+				review.dateText = dateMeta.getAttribute('content') || '';
 			}
 			if (!review.dateText) {
-				// Fallback: find text with "назад" (ago) or date-like pattern
-				const allText = el.querySelectorAll('span, div');
-				for (const t of allText) {
-					const text = t.textContent.trim();
-					if (text.match(/назад|ago|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр/i) && text.length < 40) {
-						review.dateText = text;
+				// Fallback: text from date span
+				const dateSpan = el.querySelector('.business-review-view__date span, [class*="review-date"]');
+				if (dateSpan) review.dateText = dateSpan.textContent.trim();
+			}
+			if (!review.dateText) {
+				// Last resort: find text with date pattern
+				const allSpans = el.querySelectorAll('span');
+				for (const s of allSpans) {
+					const t = s.textContent.trim();
+					if (t.match(/назад|ago|\d{4}|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|january|february|march|april|may|june|july|august|september|october|november|december/i) && t.length < 50) {
+						review.dateText = t;
 						break;
 					}
 				}
@@ -512,19 +495,26 @@ func (p *YandexParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, 
 // Examples: "2 дня назад", "месяц назад", "вчера", "15 января 2025"
 func parseRelativeDate(dateText string) time.Time {
 	now := time.Now()
-	dateText = strings.TrimSpace(strings.ToLower(dateText))
+	dateText = strings.TrimSpace(dateText)
 
 	if dateText == "" {
-		return now
+		return time.Time{} // return zero time for empty dates
 	}
 
-	// Try ISO format first (datetime attribute)
+	// Try ISO formats BEFORE lowercasing — time.Parse requires uppercase T and Z
+	// RFC3339Nano handles both "2025-10-26T15:31:15Z" and "2025-10-26T15:31:15.291Z"
+	if t, err := time.Parse(time.RFC3339Nano, dateText); err == nil {
+		return t
+	}
 	if t, err := time.Parse(time.RFC3339, dateText); err == nil {
 		return t
 	}
 	if t, err := time.Parse("2006-01-02", dateText); err == nil {
 		return t
 	}
+
+	// Lowercase for relative date parsing below
+	dateText = strings.ToLower(dateText)
 
 	// English date formats: "October 26, 2025", "26 October 2025", "Oct 26, 2025"
 	englishFormats := []string{
@@ -624,7 +614,8 @@ func parseRelativeDate(dateText string) time.Time {
 		}
 	}
 
-	return now
+	// Could not parse date — return zero time
+	return time.Time{}
 }
 
 // capitalizeDateWords capitalizes the first letter of each word for time.Parse compatibility.

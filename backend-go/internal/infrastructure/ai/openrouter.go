@@ -14,6 +14,25 @@ import (
 	"time"
 )
 
+// Free models to try in order if the primary model is rate-limited
+var fallbackModels = []string{
+	"qwen/qwen3-coder:free",
+	"nousresearch/hermes-3-llama-3.1-405b:free",
+	"meta-llama/llama-3.3-70b-instruct:free",
+	"mistralai/mistral-small-3.1-24b-instruct:free",
+	"google/gemma-3-27b-it:free",
+	"openai/gpt-oss-120b:free",
+	"qwen/qwen3-next-80b-a3b-instruct:free",
+	"z-ai/glm-4.5-air:free",
+	"stepfun/step-3.5-flash:free",
+}
+
+// Models that don't support system messages — merge system into user prompt
+var noSystemMessageModels = map[string]bool{
+	"google/gemma-3-27b-it:free":  true,
+	"google/gemma-3-12b-it:free":  true,
+}
+
 type OpenRouterClient struct {
 	apiKey      string
 	baseURL     string
@@ -118,19 +137,60 @@ func (c *OpenRouterClient) AnalyzeReviews(reviews []entity.Review) (*AnalysisRes
 }
 
 func (c *OpenRouterClient) callAI(prompt string) (string, error) {
-	req := ChatRequest{
-		Model:       c.model,
-		Temperature: c.temperature,
-		Messages: []ChatMessage{
-			{
-				Role:    "system",
-				Content: "Ты - эксперт по анализу отзывов клиентов. Твоя задача - проанализировать отзывы и дать четкие рекомендации. ВАЖНО: Отвечай ТОЛЬКО валидным JSON без дополнительного текста, без markdown-блоков. Используй русский язык для текста внутри JSON.",
-			},
+	// Build list of models to try: primary first, then fallbacks
+	models := []string{c.model}
+	for _, m := range fallbackModels {
+		if m != c.model {
+			models = append(models, m)
+		}
+	}
+
+	var lastErr error
+	for _, model := range models {
+		result, err := c.callAIWithModel(prompt, model)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		// If rate limited (429), try next model
+		if strings.Contains(err.Error(), "429") || strings.Contains(err.Error(), "rate") {
+			log.Printf("[AI] Model %s rate limited, trying next model...", model)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		// For other errors, also try next model but log differently
+		log.Printf("[AI] Model %s error: %v, trying next model...", model, err)
+		continue
+	}
+
+	return "", fmt.Errorf("all models failed, last error: %w", lastErr)
+}
+
+func (c *OpenRouterClient) callAIWithModel(prompt string, model string) (string, error) {
+	log.Printf("[AI] Trying model: %s", model)
+
+	systemContent := "Ты - эксперт по анализу отзывов клиентов. Твоя задача - проанализировать отзывы и дать четкие рекомендации. ВАЖНО: Отвечай ТОЛЬКО валидным JSON без дополнительного текста, без markdown-блоков. Используй русский язык для текста внутри JSON."
+
+	var messages []ChatMessage
+	if noSystemMessageModels[model] {
+		// Merge system instruction into user message for models that don't support system role
+		messages = []ChatMessage{
 			{
 				Role:    "user",
-				Content: prompt,
+				Content: systemContent + "\n\n" + prompt,
 			},
-		},
+		}
+	} else {
+		messages = []ChatMessage{
+			{Role: "system", Content: systemContent},
+			{Role: "user", Content: prompt},
+		}
+	}
+
+	req := ChatRequest{
+		Model:       model,
+		Temperature: c.temperature,
+		Messages:    messages,
 	}
 
 	body, err := json.Marshal(req)
@@ -166,6 +226,7 @@ func (c *OpenRouterClient) callAI(prompt string) (string, error) {
 		return "", fmt.Errorf("no response from AI")
 	}
 
+	log.Printf("[AI] Success with model: %s", model)
 	return chatResp.Choices[0].Message.Content, nil
 }
 
