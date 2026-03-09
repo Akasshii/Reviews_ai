@@ -38,106 +38,10 @@ export const DashboardPage = () => {
     }
   };
 
-  // Собираем 10 последних отзывов из всех отчётов или используем демо-данные
-  const actualReviews = recentReports
+  // Собираем 10 последних отзывов из всех отчётов
+  const recentReviews = recentReports
     .flatMap(report => (report.reviews || []).map(review => ({ ...review, reportTitle: report.title })))
     .slice(0, 10);
-
-  // Демо-отзывы для красивого отображения
-  const demoReviews = [
-    {
-      id: 'demo-1',
-      author: 'Анна К.',
-      rating: 5,
-      text: 'Отличный парк! Очень чисто, много зелени. Детские площадки в отличном состоянии. Приятно проводить время с семьёй.',
-      date: new Date('2025-12-15'),
-      platform: 'yandex' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-2',
-      author: 'Михаил С.',
-      rating: 4,
-      text: 'Хорошее место для прогулок. Единственный минус - мало лавочек в тенистых местах летом.',
-      date: new Date('2025-12-14'),
-      platform: 'yandex' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-3',
-      author: 'Елена В.',
-      rating: 5,
-      text: 'Новогоднее оформление просто волшебное! Иллюминация, каток, праздничная атмосфера. Спасибо!',
-      date: new Date('2025-12-13'),
-      platform: '2gis' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-4',
-      author: 'Дмитрий П.',
-      rating: 3,
-      text: 'В целом неплохо, но в выходные слишком много людей. Парковка переполнена.',
-      date: new Date('2025-12-12'),
-      platform: 'yandex' as const,
-      sentiment: 'neutral' as const,
-    },
-    {
-      id: 'demo-5',
-      author: 'Ольга Н.',
-      rating: 5,
-      text: 'Прекрасное место для утренних пробежек! Удобные дорожки, свежий воздух.',
-      date: new Date('2025-12-11'),
-      platform: '2gis' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-6',
-      author: 'Александр Б.',
-      rating: 4,
-      text: 'Хороший парк, но хотелось бы больше кафе и точек с едой.',
-      date: new Date('2025-12-10'),
-      platform: 'yandex' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-7',
-      author: 'Мария Л.',
-      rating: 2,
-      text: 'Разочарована состоянием туалетов. Очень грязно, требуется срочная уборка.',
-      date: new Date('2025-12-09'),
-      platform: 'yandex' as const,
-      sentiment: 'negative' as const,
-    },
-    {
-      id: 'demo-8',
-      author: 'Сергей Т.',
-      rating: 5,
-      text: 'Отличная инфраструктура! Есть всё необходимое. Особенно понравился новый спортивный городок.',
-      date: new Date('2025-12-08'),
-      platform: '2gis' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-9',
-      author: 'Наталья Ф.',
-      rating: 4,
-      text: 'Красивый парк с ухоженными клумбами. Приятно гулять в любое время года.',
-      date: new Date('2025-12-07'),
-      platform: 'yandex' as const,
-      sentiment: 'positive' as const,
-    },
-    {
-      id: 'demo-10',
-      author: 'Игорь К.',
-      rating: 5,
-      text: 'Отлично провели корпоратив! Организация на высшем уровне, красивые локации для фото.',
-      date: new Date('2025-12-06'),
-      platform: '2gis' as const,
-      sentiment: 'positive' as const,
-    },
-  ];
-
-  const recentReviews = actualReviews.length > 0 ? actualReviews : demoReviews;
 
   // Рассчитываем статистику из последних отчётов
   const stats = {

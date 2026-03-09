@@ -269,17 +269,30 @@ export const ReportsPage = () => {
   );
 };
 
+const detectPlatform = (url: string): 'yandex' | '2gis' | null => {
+  if (/yandex\.(ru|com)\/maps/i.test(url)) return 'yandex';
+  if (/2gis\.(ru|com)/i.test(url)) return '2gis';
+  return null;
+};
+
 const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
   const [title, setTitle] = useState('');
-  const [yandexUrl, setYandexUrl] = useState('https://yandex.com/maps/org/chaykovsky_park_kultury_i_otdykha/204693811778/reviews/');
-  const [startDate, setStartDate] = useState('2025-07-01');
-  const [endDate, setEndDate] = useState('2025-12-20');
+  const [url, setUrl] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const detectedPlatform = url.trim() ? detectPlatform(url.trim()) : undefined;
+
   const handleGenerate = async () => {
-    if (!title || !yandexUrl || !startDate || !endDate) {
+    if (!title || !url || !startDate || !endDate) {
       setError('Заполните все поля');
+      return;
+    }
+
+    if (!detectedPlatform) {
+      setError('Неподдерживаемая платформа. Используйте URL Яндекс.Карт или 2ГИС');
       return;
     }
 
@@ -288,7 +301,7 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
       setError(null);
       await reportApi.createReport({
         title,
-        yandexUrl,
+        url,
         periodStart: new Date(startDate).toISOString(),
         periodEnd: new Date(endDate).toISOString(),
       });
@@ -301,14 +314,26 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
     }
   };
 
+  const handleOverlayClick = () => {
+    if (!loading) onClose();
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <Card padding="lg">
           <CardHeader>
             <CardTitle>Создать новый отчет</CardTitle>
           </CardHeader>
           <CardContent>
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <div className="spinner" />
+                <p style={{ marginTop: '16px', fontSize: '1rem', color: 'var(--color-text-secondary)' }}>
+                  Собираем отзывы... Это может занять до 30 секунд
+                </p>
+              </div>
+            ) : (
             <div className="modal-form">
               {error && (
                 <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '16px' }}>
@@ -329,15 +354,28 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
               </div>
 
               <div className="form-group">
-                <label className="form-label">URL Яндекс.Карт</label>
+                <label className="form-label">URL организации (Яндекс.Карты или 2ГИС)</label>
                 <input
                   type="text"
-                  value={yandexUrl}
-                  onChange={(e) => setYandexUrl(e.target.value)}
-                  placeholder="https://yandex.com/maps/org/..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://yandex.ru/maps/org/... или https://2gis.ru/.../firm/..."
                   className="date-input"
                   style={{ width: '100%' }}
                 />
+                {url.trim() && (
+                  <div style={{ marginTop: '6px' }}>
+                    {detectedPlatform === 'yandex' && (
+                      <span className="platform-detect-badge platform-detect-badge--yandex">Яндекс.Карты</span>
+                    )}
+                    {detectedPlatform === '2gis' && (
+                      <span className="platform-detect-badge platform-detect-badge--2gis">2ГИС</span>
+                    )}
+                    {detectedPlatform === null && (
+                      <span className="platform-detect-badge platform-detect-badge--unknown">Неподдерживаемая платформа</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -360,14 +398,20 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
               </div>
 
               <div className="modal-actions">
-                <Button variant="outline" onClick={onClose} fullWidth disabled={loading}>
+                <Button variant="outline" onClick={onClose} fullWidth>
                   Отмена
                 </Button>
-                <Button variant="primary" onClick={handleGenerate} fullWidth disabled={loading}>
-                  {loading ? 'Создание...' : 'Создать отчет'}
+                <Button
+                  variant="primary"
+                  onClick={handleGenerate}
+                  fullWidth
+                  disabled={!detectedPlatform && url.trim().length > 0}
+                >
+                  Создать отчет
                 </Button>
               </div>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>

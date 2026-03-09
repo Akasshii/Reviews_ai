@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
@@ -23,8 +23,20 @@ FROM alpine:latest
 
 WORKDIR /root/
 
-# Install ca-certificates for HTTPS requests (needed for OpenRouter API)
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates for HTTPS and chromium with dependencies for headless parsing
+RUN apk --no-cache add \
+    ca-certificates \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    font-noto \
+    && rm -rf /var/cache/apk/*
+
+# Chromium configuration for headless mode in container
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV CHROMEDP_NO_SANDBOX=true
+ENV CHROME_FLAGS="--no-sandbox --disable-gpu --disable-dev-shm-usage"
 
 # Copy the binary from builder
 COPY --from=builder /app/main .

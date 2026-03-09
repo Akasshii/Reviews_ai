@@ -5,7 +5,7 @@ export interface CreateReportDTO {
   title: string;
   periodStart: string;
   periodEnd: string;
-  yandexUrl: string;
+  url: string;
 }
 
 export const reportApi = {

@@ -34,12 +34,18 @@ func main() {
 
 	// Initialize infrastructure services
 	aiClient := ai.NewOpenRouterClient()
-	yandexParser := parser.NewYandexParser()
+	browserManager := parser.NewBrowserManager()
+	defer browserManager.Close()
+
+	rateLimiter := parser.NewRateLimiter()
+	yandexParser := parser.NewYandexParser(browserManager, rateLimiter)
+	twoGisParser := parser.NewTwoGisParser(browserManager, rateLimiter)
+	parserRegistry := parser.NewParserRegistry(yandexParser, twoGisParser)
 
 	// Initialize use cases
 	authUseCase := usecase.NewAuthUseCase(userRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo)
-	reportUseCase := usecase.NewReportUseCase(reportRepo, reviewRepo, aiClient, yandexParser)
+	reportUseCase := usecase.NewReportUseCase(reportRepo, reviewRepo, aiClient, parserRegistry)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authUseCase)

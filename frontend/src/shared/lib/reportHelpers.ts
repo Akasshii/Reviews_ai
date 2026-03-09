@@ -5,7 +5,7 @@ export const normalizeReport = (report: any): Report => {
   const normalized: any = {
     ...report,
     createdAt: new Date(report.createdAt),
-    platform: report.platform || ('yandex' as const),
+    platform: report.platform || report.source || 'yandex',
     status: report.status || ('ready' as const),
   };
 
