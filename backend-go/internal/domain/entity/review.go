@@ -45,12 +45,12 @@ const (
 	Source2GIS   ReviewSource = "2gis"
 )
 
-// YandexReview represents raw review data from Yandex Maps
-type YandexReview struct {
-	Author     string    `json:"author"`
-	Rating     int       `json:"rating"`
-	Text       string    `json:"text"`
-	Date       time.Time `json:"date"`
-	ReviewID   string    `json:"reviewId"`
-	BusinessID string    `json:"businessId"`
+// ParsedReview represents raw review data from any review source
+type ParsedReview struct {
+	Author   string    `json:"author"`
+	Rating   int       `json:"rating"`
+	Text     string    `json:"text"`
+	Date     time.Time `json:"date"`
+	ReviewID string    `json:"reviewId"`
+	Source   string    `json:"source"`
 }

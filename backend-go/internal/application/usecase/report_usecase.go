@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"reviews-ai/internal/domain/entity"
 	"reviews-ai/internal/domain/repository"
+	"reviews-ai/internal/domain/service"
 	"reviews-ai/internal/infrastructure/ai"
 	"reviews-ai/internal/infrastructure/parser"
 	"time"
@@ -14,62 +16,75 @@ import (
 )
 
 type ReportUseCase struct {
-	reportRepo repository.ReportRepository
-	reviewRepo repository.ReviewRepository
-	aiClient   *ai.OpenRouterClient
-	parser     *parser.YandexParser
+	reportRepo     repository.ReportRepository
+	reviewRepo     repository.ReviewRepository
+	aiClient       *ai.OpenRouterClient
+	parserRegistry *parser.ParserRegistry
 }
 
 func NewReportUseCase(
 	reportRepo repository.ReportRepository,
 	reviewRepo repository.ReviewRepository,
 	aiClient *ai.OpenRouterClient,
-	parser *parser.YandexParser,
+	parserRegistry *parser.ParserRegistry,
 ) *ReportUseCase {
 	return &ReportUseCase{
-		reportRepo: reportRepo,
-		reviewRepo: reviewRepo,
-		aiClient:   aiClient,
-		parser:     parser,
+		reportRepo:     reportRepo,
+		reviewRepo:     reviewRepo,
+		aiClient:       aiClient,
+		parserRegistry: parserRegistry,
 	}
 }
 
 func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto *entity.CreateReportDTO) (*entity.Report, error) {
-	// 1. Validate Yandex URL
-	if !uc.parser.ValidateYandexURL(dto.YandexURL) {
-		return nil, errors.New("invalid Yandex Maps URL")
+	// 1. Find parser for URL
+	p, err := uc.parserRegistry.GetParser(dto.URL)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported URL: %w", err)
 	}
 
-	// 2. Parse reviews from Yandex Maps
-	yandexReviews, err := uc.parser.ParseReviews(dto.YandexURL)
+	// 2. Parse reviews
+	// Extend PeriodEnd to end of day (23:59:59) so the entire day is included
+	periodEnd := dto.PeriodEnd
+	if !periodEnd.IsZero() && periodEnd.Hour() == 0 && periodEnd.Minute() == 0 && periodEnd.Second() == 0 {
+		periodEnd = periodEnd.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
+	opts := service.ParseOptions{
+		PeriodStart: dto.PeriodStart,
+		PeriodEnd:   periodEnd,
+	}
+	parsedReviews, err := p.ParseReviews(ctx, dto.URL, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse reviews: %w", err)
 	}
 
-	if len(yandexReviews) == 0 {
+	if len(parsedReviews) == 0 {
 		return nil, errors.New("no reviews found")
 	}
 
-	// 3. Convert Yandex reviews to domain reviews and analyze
+	// 3. Convert parsed reviews to domain reviews
 	var reviews []entity.Review
 	reportID := uuid.New()
 
-	for _, yr := range yandexReviews {
-		// Skip reviews outside the period
-		if yr.Date.Before(dto.PeriodStart) || yr.Date.After(dto.PeriodEnd) {
+	for _, pr := range parsedReviews {
+		// Date filtering is already done in the parser, only re-check if period is set
+		if !dto.PeriodStart.IsZero() && pr.Date.Before(dto.PeriodStart) {
+			continue
+		}
+		if !periodEnd.IsZero() && pr.Date.After(periodEnd) {
 			continue
 		}
 
 		review := entity.Review{
 			ID:         uuid.New(),
 			ReportID:   reportID,
-			Author:     yr.Author,
-			Rating:     yr.Rating,
-			Text:       yr.Text,
-			Date:       yr.Date,
-			Source:     string(entity.SourceYandex),
-			Categories: uc.parser.ExtractCategories(yr.Text),
-			Sentiment:  uc.parser.DetermineSentiment(yr.Rating, yr.Text),
+			Author:     pr.Author,
+			Rating:     pr.Rating,
+			Text:       pr.Text,
+			Date:       pr.Date,
+			Source:     pr.Source,
+			Categories: parser.ExtractCategories(pr.Text),
+			Sentiment:  parser.DetermineSentiment(pr.Rating, pr.Text),
 			CreatedAt:  time.Now(),
 		}
 		reviews = append(reviews, review)
@@ -83,9 +98,10 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 	stats := uc.calculateStats(reviews)
 
 	// 5. Analyze with AI
+	log.Printf("[ReportUseCase] Sending %d reviews to AI analysis", len(reviews))
 	aiAnalysis, err := uc.aiClient.AnalyzeReviews(reviews)
 	if err != nil {
-		// Log error but continue with basic analysis
+		log.Printf("[ReportUseCase] AI analysis failed: %v, using fallback", err)
 		aiAnalysis = &ai.AnalysisResult{
 			Summary:         generateSummary(stats),
 			Insights:        []string{"Автоматический анализ временно недоступен"},
@@ -95,22 +111,22 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 
 	// 6. Create report
 	report := &entity.Report{
-		ID:                  reportID,
-		UserID:              userID,
-		Title:               dto.Title,
-		PeriodStart:         dto.PeriodStart,
-		PeriodEnd:           dto.PeriodEnd,
-		Summary:             &aiAnalysis.Summary,
-		Insights:            aiAnalysis.Insights,
-		Recommendations:     aiAnalysis.Recommendations,
-		TotalReviews:        stats.TotalReviews,
-		AverageRating:       stats.AverageRating,
-		PositiveReviews:     stats.PositiveReviews,
-		NeutralReviews:      stats.NeutralReviews,
-		NegativeReviews:     stats.NegativeReviews,
-		RatingDistribution:  stats.RatingDistribution,
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
+		ID:                 reportID,
+		UserID:             userID,
+		Title:              dto.Title,
+		PeriodStart:        dto.PeriodStart,
+		PeriodEnd:          dto.PeriodEnd,
+		Summary:            &aiAnalysis.Summary,
+		Insights:           aiAnalysis.Insights,
+		Recommendations:    aiAnalysis.Recommendations,
+		TotalReviews:       stats.TotalReviews,
+		AverageRating:      stats.AverageRating,
+		PositiveReviews:    stats.PositiveReviews,
+		NeutralReviews:     stats.NeutralReviews,
+		NegativeReviews:    stats.NegativeReviews,
+		RatingDistribution: stats.RatingDistribution,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
 	}
 
 	if err := uc.reportRepo.Create(ctx, report); err != nil {
@@ -152,7 +168,6 @@ func (uc *ReportUseCase) GetReportByID(ctx context.Context, reportID uuid.UUID, 
 		return nil, errors.New("report not found")
 	}
 
-	// Check ownership
 	if report.UserID != userID {
 		return nil, errors.New("access denied")
 	}
@@ -169,7 +184,6 @@ func (uc *ReportUseCase) DeleteReport(ctx context.Context, reportID uuid.UUID, u
 		return errors.New("report not found")
 	}
 
-	// Check ownership
 	if report.UserID != userID {
 		return errors.New("access denied")
 	}
@@ -194,7 +208,6 @@ func (uc *ReportUseCase) calculateStats(reviews []entity.Review) *entity.ReportS
 	for _, review := range reviews {
 		totalRating += float64(review.Rating)
 
-		// Count rating distribution
 		switch review.Rating {
 		case 1:
 			stats.RatingDistribution.One++
@@ -208,7 +221,6 @@ func (uc *ReportUseCase) calculateStats(reviews []entity.Review) *entity.ReportS
 			stats.RatingDistribution.Five++
 		}
 
-		// Count sentiment
 		switch review.Sentiment {
 		case string(entity.SentimentPositive):
 			stats.PositiveReviews++
@@ -259,7 +271,6 @@ func (uc *ReportUseCase) calculateCategoryStats(reportID uuid.UUID, reviews []en
 		}
 	}
 
-	// Calculate averages
 	var stats []entity.CategoryStat
 	for _, stat := range categoryMap {
 		if stat.Count > 0 {

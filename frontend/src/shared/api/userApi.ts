@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { UserResponse, UpdateUserDTO } from '../types';
+import type { UserResponse, UpdateUserDTO } from '../types';
 
 export const userApi = {
   getProfile: async (): Promise<UserResponse> => {

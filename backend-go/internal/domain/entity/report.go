@@ -51,7 +51,7 @@ type CreateReportDTO struct {
 	Title       string    `json:"title" binding:"required"`
 	PeriodStart time.Time `json:"periodStart" binding:"required"`
 	PeriodEnd   time.Time `json:"periodEnd" binding:"required"`
-	YandexURL   string    `json:"yandexUrl" binding:"required,url"`
+	URL         string    `json:"url" binding:"required,url"`
 }
 
 type ReportStats struct {

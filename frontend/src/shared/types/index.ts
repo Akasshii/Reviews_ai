@@ -69,6 +69,25 @@ export interface Report {
   reviews?: Review[];
 }
 
+export interface UserResponse {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  company?: string;
+  position?: string;
+  avatar?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateUserDTO {
+  name?: string;
+  company?: string;
+  position?: string;
+  avatar?: string;
+}
+
 export interface DashboardStats {
   totalReviews: number;
   averageRating: number;

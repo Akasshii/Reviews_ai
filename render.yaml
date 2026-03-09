@@ -10,7 +10,7 @@ services:
   - type: web
     name: reviews-ai-backend
     runtime: docker
-    plan: free
+    plan: starter
     region: frankfurt
     rootDir: backend-go
     dockerfilePath: ./Dockerfile
@@ -36,3 +36,15 @@ services:
         value: qwen/qwen3-coder:free
       - key: OPENROUTER_BASE_URL
         value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_TEMPERATURE
+        value: "0.3"
+      - key: PARSER_SCROLL_DELAY_MS
+        value: "2000"
+      - key: PARSER_MAX_REVIEWS
+        value: "200"
+      - key: PARSER_TIMEOUT_SEC
+        value: "60"
+      - key: CHROME_BIN
+        value: /usr/bin/chromium-browser
+      - key: CHROMEDP_NO_SANDBOX
+        value: "true"
