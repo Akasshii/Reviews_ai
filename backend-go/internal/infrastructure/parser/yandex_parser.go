@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"regexp"
 	"reviews-ai/internal/domain/entity"
 	"reviews-ai/internal/domain/service"
@@ -91,6 +92,9 @@ func (p *YandexParser) parseReviewsInternal(ctx context.Context, url string, opt
 	if err := p.scrollToLoadReviews(tabCtx, maxReviews); err != nil {
 		log.Printf("[YandexParser] WARNING: scroll incomplete, returning partial results: %v", err)
 	}
+
+	// Expand collapsed (spoilered) long reviews by clicking all "Ещё" buttons
+	p.expandSpoilers(tabCtx)
 
 	// Extract reviews from DOM via JavaScript
 	rawReviews, err := p.extractReviewsFromDOM(tabCtx)
@@ -201,15 +205,24 @@ func (p *YandexParser) extractBusinessID(yandexURL string) (string, error) {
 	return matches[1], nil
 }
 
-// ensureReviewsURL makes sure the URL ends with /reviews/
-func (p *YandexParser) ensureReviewsURL(url string) string {
-	url = strings.TrimRight(url, "/")
-	if !strings.HasSuffix(url, "/reviews") {
-		url += "/reviews/"
-	} else {
-		url += "/"
+// ensureReviewsURL makes sure the URL path contains /reviews/ before query parameters.
+func (p *YandexParser) ensureReviewsURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		// Fallback: naive append
+		rawURL = strings.TrimRight(rawURL, "/")
+		if !strings.HasSuffix(rawURL, "/reviews") {
+			rawURL += "/reviews/"
+		}
+		return rawURL
 	}
-	return url
+	u.Path = strings.TrimRight(u.Path, "/")
+	if !strings.HasSuffix(u.Path, "/reviews") {
+		u.Path += "/reviews/"
+	} else {
+		u.Path += "/"
+	}
+	return u.String()
 }
 
 // waitForReviews waits for the reviews section to appear on the page.
@@ -293,13 +306,9 @@ func (p *YandexParser) scrollToLoadReviews(ctx context.Context, maxReviews int) 
 		container.scrollTop = container.scrollHeight;
 
 		var reviewSelectors = [
-			'[class*="business-reviews-card-view__review"]',
-			'[class*="business-review-view"]',
-			'[class*="orgpage-reviews-card"]',
-			'[class*="review-card"]',
+			'.business-review-view__info',
 			'[itemprop="review"]',
-			'[data-review-id]',
-			'[class*="reviews-card"]'
+			'[data-review-id]'
 		];
 		var count = 0;
 		for (var k = 0; k < reviewSelectors.length; k++) {
@@ -362,6 +371,28 @@ func (p *YandexParser) scrollToLoadReviews(ctx context.Context, maxReviews int) 
 
 	log.Printf("[YandexParser] Scroll complete after %d iterations", maxScrolls)
 	return nil
+}
+
+// expandSpoilers clicks all "Ещё" buttons to reveal full text of collapsed reviews.
+func (p *YandexParser) expandSpoilers(ctx context.Context) {
+	expandJS := `
+	(function() {
+		var buttons = document.querySelectorAll('span.business-review-view__expand');
+		for (var i = 0; i < buttons.length; i++) {
+			buttons[i].click();
+		}
+		return buttons.length;
+	})()
+	`
+	var clicked int
+	if err := chromedp.Run(ctx, chromedp.Evaluate(expandJS, &clicked)); err != nil {
+		log.Printf("[YandexParser] WARNING: failed to expand spoilers: %v", err)
+		return
+	}
+	if clicked > 0 {
+		log.Printf("[YandexParser] Expanded %d spoilered reviews", clicked)
+		_ = chromedp.Run(ctx, chromedp.Sleep(500*time.Millisecond))
+	}
 }
 
 // rawReview holds data extracted from the DOM before conversion.

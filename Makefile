@@ -97,16 +97,16 @@ lint:
 
 db-create:
 	@echo "$(CYAN)Создаю БД reviews_ai...$(NC)"
-	@createdb reviews_ai -U slava 2>/dev/null && echo "$(GREEN)БД создана$(NC)" || echo "$(YELLOW)БД уже существует$(NC)"
+	@createdb reviews_ai -U postgres 2>/dev/null && echo "$(GREEN)БД создана$(NC)" || echo "$(YELLOW)БД уже существует$(NC)"
 
 db-schema:
 	@echo "$(CYAN)Применяю схему...$(NC)"
-	psql -U slava -d reviews_ai -f backend-go/migrations/schema.sql
+	psql -U postgres -d reviews_ai -f backend-go/migrations/schema.sql
 	@echo "$(GREEN)Схема применена$(NC)"
 
 db-reset:
 	@echo "$(YELLOW)Пересоздаю БД с нуля...$(NC)"
-	@dropdb reviews_ai -U slava 2>/dev/null || true
+	@dropdb reviews_ai -U postgres 2>/dev/null || true
 	@make db-create
 	@make db-schema
 	@echo "$(GREEN)БД пересоздана$(NC)"
