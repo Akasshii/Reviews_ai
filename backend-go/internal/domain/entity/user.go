@@ -43,3 +43,8 @@ type AuthResponse struct {
 	Token string `json:"token"`
 	User  *User  `json:"user"`
 }
+
+type ChangePasswordDTO struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required,min=6"`
+}

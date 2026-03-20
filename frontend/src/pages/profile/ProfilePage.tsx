@@ -1,23 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '../../shared/ui';
 import { UserIcon, MailIcon } from '../../shared/ui';
-import { mockUser } from '../../shared/lib/mockData';
+import { authApi } from '../../shared/api/authApi';
+import { userApi } from '../../shared/api/userApi';
+import { reportApi } from '../../shared/api/reportApi';
 import './ProfilePage.css';
 
 export const ProfilePage = () => {
-  const [name, setName] = useState(mockUser.name);
-  const [email, setEmail] = useState(mockUser.email);
-  const [company, setCompany] = useState(mockUser.company || '');
+  const currentUser = authApi.getCurrentUser();
+
+  const [name, setName] = useState(currentUser?.name || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
+  const [company, setCompany] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
+  const [displayName, setDisplayName] = useState(currentUser?.name || '');
+  const [displayEmail, setDisplayEmail] = useState(currentUser?.email || '');
+  const [stats, setStats] = useState({ totalReviews: 0, totalReports: 0, platforms: 0 });
+
+  useEffect(() => {
+    userApi.getProfile().then((profile) => {
+      setName(profile.name);
+      setEmail(profile.email);
+      setCompany(profile.company || '');
+      setDisplayName(profile.name);
+      setDisplayEmail(profile.email);
+    }).catch(() => {
+      // fallback to localStorage data already set
+    });
+
+    reportApi.getReports().then((reports) => {
+      const totalReviews = reports.reduce((sum, r) => sum + (r.totalReviews || r.stats?.totalReviews || 0), 0);
+      const platformsSet = new Set<string>();
+      reports.forEach(r => { if (r.platform && r.platform !== 'all') platformsSet.add(r.platform); });
+      setStats({ totalReviews, totalReports: reports.length, platforms: platformsSet.size });
+    }).catch(() => {
+      // keep defaults (zeros)
+    });
+  }, []);
+
   const handleSave = () => {
+    setDisplayName(name);
+    setDisplayEmail(email);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
-    setName(mockUser.name);
-    setEmail(mockUser.email);
-    setCompany(mockUser.company || '');
+    setName(displayName);
+    setEmail(displayEmail);
     setIsEditing(false);
   };
 
@@ -35,8 +65,8 @@ export const ProfilePage = () => {
               <UserIcon size={48} />
             </div>
             <div className="profile-avatar-info">
-              <h2 className="profile-name">{mockUser.name}</h2>
-              <p className="profile-email">{mockUser.email}</p>
+              <h2 className="profile-name">{displayName}</h2>
+              <p className="profile-email">{displayEmail}</p>
             </div>
             <Button variant="outline" size="sm">
               Изменить фото
@@ -102,15 +132,15 @@ export const ProfilePage = () => {
           <CardContent>
             <div className="profile-stats">
               <div className="profile-stat">
-                <span className="profile-stat-value">425</span>
+                <span className="profile-stat-value">{stats.totalReviews}</span>
                 <span className="profile-stat-label">Всего отзывов</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">3</span>
+                <span className="profile-stat-value">{stats.totalReports}</span>
                 <span className="profile-stat-label">Отчетов создано</span>
               </div>
               <div className="profile-stat">
-                <span className="profile-stat-value">2</span>
+                <span className="profile-stat-value">{stats.platforms}</span>
                 <span className="profile-stat-label">Подключено платформ</span>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { HomeIcon, FileTextIcon, UserIcon, SettingsIcon } from '../../shared/ui';
 import './Sidebar.css';
 
@@ -13,7 +13,9 @@ export const Sidebar = () => {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h2 className="sidebar-logo">Reviews AI</h2>
+        <Link to="/" className="sidebar-logo-link">
+          <h2 className="sidebar-logo">Reviews AI</h2>
+        </Link>
       </div>
 
       <nav className="sidebar-nav">
