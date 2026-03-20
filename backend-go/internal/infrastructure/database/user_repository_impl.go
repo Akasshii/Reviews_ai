@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reviews-ai/internal/domain/entity"
 	"reviews-ai/internal/domain/repository"
 	"time"
@@ -128,6 +129,22 @@ func (r *userRepositoryImpl) Update(ctx context.Context, id uuid.UUID, dto *enti
 		return nil, err
 	}
 	return user, nil
+}
+
+func (r *userRepositoryImpl) UpdatePassword(ctx context.Context, id uuid.UUID, hashedPassword string) error {
+	query := `UPDATE users SET password = $1, updated_at = NOW() WHERE id = $2`
+	result, err := r.db.ExecContext(ctx, query, hashedPassword, id)
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+	return nil
 }
 
 func (r *userRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {

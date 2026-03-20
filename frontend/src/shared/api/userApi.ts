@@ -9,4 +9,8 @@ export const userApi = {
   updateProfile: async (data: UpdateUserDTO): Promise<UserResponse> => {
     return apiClient.put<UserResponse>('/user/profile', data, true);
   },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }): Promise<void> => {
+    return apiClient.put<void>('/user/password', data, true);
+  },
 };

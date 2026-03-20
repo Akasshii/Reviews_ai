@@ -1,16 +1,20 @@
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { Button, Input, Card } from '../../shared/ui';
-import { MailIcon, LockIcon } from '../../shared/ui';
+import { MailIcon, LockIcon, EyeIcon, EyeOffIcon } from '../../shared/ui';
 import { authApi } from '../../shared/api/authApi';
 import './LoginPage.css';
 
 interface LoginPageProps {
   onLogin: () => void;
+  onNavigateRegister: () => void;
+  onNavigateForgotPassword: () => void;
 }
 
-export const LoginPage = ({ onLogin }: LoginPageProps) => {
+export const LoginPage = ({ onLogin, onNavigateRegister, onNavigateForgotPassword }: LoginPageProps) => {
   const [email, setEmail] = useState('demo@reviews.ai');
   const [password, setPassword] = useState('password123');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,12 +68,17 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
             />
 
             <Input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               label="Пароль"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               icon={<LockIcon size={20} />}
+              suffix={
+                <span onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                </span>
+              }
               fullWidth
               required
             />
@@ -86,13 +95,13 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
           </form>
 
           <div className="login-footer">
-            <a href="#" className="login-link">
+            <button className="login-link" onClick={onNavigateForgotPassword}>
               Забыли пароль?
-            </a>
+            </button>
             <span className="login-divider">•</span>
-            <a href="#" className="login-link">
+            <button className="login-link" onClick={onNavigateRegister}>
               Создать аккаунт
-            </a>
+            </button>
           </div>
         </Card>
 
