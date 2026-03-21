@@ -5,6 +5,7 @@ import { ReportsPage } from '../../pages/reports';
 import { ReportDetailPage } from '../../pages/report-detail';
 import { ProfilePage } from '../../pages/profile';
 import { SettingsPage } from '../../pages/settings';
+import { LocationsPage } from '../../pages/locations';
 
 export const createAppRouter = (onLogout: () => void) =>
   createBrowserRouter([
@@ -23,6 +24,10 @@ export const createAppRouter = (onLogout: () => void) =>
         {
           path: 'reports/:id',
           element: <ReportDetailPage />,
+        },
+        {
+          path: 'locations',
+          element: <LocationsPage />,
         },
         {
           path: 'profile',

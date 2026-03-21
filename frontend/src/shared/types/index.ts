@@ -99,3 +99,37 @@ export interface DashboardStats {
     count: number;
   }[];
 }
+
+export interface Location {
+  id: string;
+  userId: string;
+  name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  yandexUrl?: string;
+  twogisUrl?: string;
+  googleUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateLocationDTO {
+  name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  yandexUrl?: string;
+  twogisUrl?: string;
+  googleUrl?: string;
+}
+
+export interface UpdateLocationDTO {
+  name?: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  yandexUrl?: string;
+  twogisUrl?: string;
+  googleUrl?: string;
+}

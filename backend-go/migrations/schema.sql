@@ -88,3 +88,26 @@ CREATE TRIGGER update_reports_updated_at
   BEFORE UPDATE ON reports
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Locations table (user's saved business locations)
+CREATE TABLE IF NOT EXISTS locations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  address VARCHAR(500),
+  latitude DECIMAL(10, 7),
+  longitude DECIMAL(10, 7),
+  yandex_url TEXT,
+  twogis_url TEXT,
+  google_url TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_locations_user_id ON locations(user_id);
+
+DROP TRIGGER IF EXISTS update_locations_updated_at ON locations;
+CREATE TRIGGER update_locations_updated_at
+  BEFORE UPDATE ON locations
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
