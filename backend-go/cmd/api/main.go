@@ -31,6 +31,7 @@ func main() {
 	userRepo := database.NewUserRepository(db)
 	reportRepo := database.NewReportRepository(db)
 	reviewRepo := database.NewReviewRepository(db)
+	locationRepo := database.NewLocationRepository(db)
 
 	// Initialize infrastructure services
 	aiClient := ai.NewOpenRouterClient()
@@ -46,11 +47,13 @@ func main() {
 	authUseCase := usecase.NewAuthUseCase(userRepo)
 	userUseCase := usecase.NewUserUseCase(userRepo)
 	reportUseCase := usecase.NewReportUseCase(reportRepo, reviewRepo, aiClient, parserRegistry)
+	locationUseCase := usecase.NewLocationUseCase(locationRepo)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authUseCase)
 	userHandler := handler.NewUserHandler(userUseCase)
 	reportHandler := handler.NewReportHandler(reportUseCase)
+	locationHandler := handler.NewLocationHandler(locationUseCase)
 
 	// Setup Gin
 	ginMode := os.Getenv("GIN_MODE")
@@ -100,6 +103,16 @@ func main() {
 			reports.GET("", reportHandler.GetReports)
 			reports.GET("/:id", reportHandler.GetReportByID)
 			reports.DELETE("/:id", reportHandler.DeleteReport)
+		}
+
+		// Location routes
+		locations := protected.Group("/locations")
+		{
+			locations.POST("", locationHandler.CreateLocation)
+			locations.GET("", locationHandler.GetLocations)
+			locations.GET("/:id", locationHandler.GetLocationByID)
+			locations.PUT("/:id", locationHandler.UpdateLocation)
+			locations.DELETE("/:id", locationHandler.DeleteLocation)
 		}
 	}
 

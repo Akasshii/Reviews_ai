@@ -1,11 +1,12 @@
 import { NavLink, Link } from 'react-router-dom';
-import { HomeIcon, FileTextIcon, UserIcon, SettingsIcon } from '../../shared/ui';
+import { HomeIcon, FileTextIcon, MapPinIcon, UserIcon, SettingsIcon } from '../../shared/ui';
 import './Sidebar.css';
 
 export const Sidebar = () => {
   const navItems = [
     { to: '/', icon: HomeIcon, label: 'Главная' },
     { to: '/reports', icon: FileTextIcon, label: 'Отчеты' },
+    { to: '/locations', icon: MapPinIcon, label: 'Филиалы' },
     { to: '/profile', icon: UserIcon, label: 'Профиль' },
     { to: '/settings', icon: SettingsIcon, label: 'Настройки' },
   ];
