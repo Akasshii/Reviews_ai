@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Button } from '../../shared/ui';
-import { PlusIcon, MapPinIcon, TrashIcon } from '../../shared/ui';
+import { PlusIcon, MapPinIcon, TrashIcon, SearchIcon } from '../../shared/ui';
+import { YandexMap, type SelectedOrganization } from '../../shared/ui';
 import { locationApi } from '../../shared/api/locationApi';
 import type { Location } from '../../shared/types';
 import './LocationsPage.css';
@@ -11,6 +12,8 @@ export const LocationsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedOrg, setSelectedOrg] = useState<SelectedOrganization | null>(null);
+  const [addingFromMap, setAddingFromMap] = useState(false);
 
   useEffect(() => {
     loadLocations();
@@ -50,6 +53,31 @@ export const LocationsPage = () => {
     }
   };
 
+  const handleOrganizationSelect = (org: SelectedOrganization) => {
+    setSelectedOrg(org);
+  };
+
+  const handleAddFromMap = async () => {
+    if (!selectedOrg) return;
+
+    try {
+      setAddingFromMap(true);
+      await locationApi.createLocation({
+        name: selectedOrg.name,
+        address: selectedOrg.address || undefined,
+        latitude: selectedOrg.latitude,
+        longitude: selectedOrg.longitude,
+        yandexUrl: selectedOrg.yandexUrl || undefined,
+      });
+      setSelectedOrg(null);
+      loadLocations();
+    } catch (err: any) {
+      alert('Ошибка добавления: ' + (err.message || 'Неизвестная ошибка'));
+    } finally {
+      setAddingFromMap(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="locations-page">
@@ -79,28 +107,64 @@ export const LocationsPage = () => {
           <p className="locations-subtitle">Организации для анализа отзывов</p>
         </div>
         <Button
-          variant="primary"
-          size="lg"
-          icon={<PlusIcon size={20} />}
+          variant="outline"
+          size="sm"
+          icon={<PlusIcon size={16} />}
           onClick={() => setShowAddModal(true)}
         >
-          Добавить филиал
+          Вручную
         </Button>
       </div>
+
+      <Card padding="lg" className="map-section">
+        <div className="map-section-header">
+          <SearchIcon size={20} />
+          <span>Найдите организацию на карте</span>
+        </div>
+        <YandexMap onOrganizationSelect={handleOrganizationSelect} height="400px" />
+      </Card>
+
+      {selectedOrg && (
+        <Card padding="lg" className="selected-org-card">
+          <div className="selected-org-info">
+            <div className="selected-org-icon">
+              <MapPinIcon size={24} />
+            </div>
+            <div className="selected-org-details">
+              <h3 className="selected-org-name">{selectedOrg.name}</h3>
+              {selectedOrg.address && (
+                <p className="selected-org-address">{selectedOrg.address}</p>
+              )}
+            </div>
+          </div>
+          <div className="selected-org-actions">
+            <Button
+              variant="primary"
+              onClick={handleAddFromMap}
+              disabled={addingFromMap}
+              icon={<PlusIcon size={18} />}
+            >
+              {addingFromMap ? 'Добавление...' : 'Добавить филиал'}
+            </Button>
+            <Button variant="outline" onClick={() => setSelectedOrg(null)}>
+              Отменить
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <h2 className="locations-section-title">
+        Мои филиалы {locations.length > 0 && `(${locations.length})`}
+      </h2>
 
       {locations.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
           <p style={{ fontSize: '18px', color: '#666', marginBottom: '20px' }}>
             У вас пока нет сохранённых филиалов
           </p>
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<PlusIcon size={20} />}
-            onClick={() => setShowAddModal(true)}
-          >
-            Добавить первый филиал
-          </Button>
+          <p style={{ fontSize: '14px', color: '#999' }}>
+            Найдите организацию на карте выше или добавьте вручную
+          </p>
         </div>
       ) : (
         <div className="locations-list">
@@ -114,11 +178,38 @@ export const LocationsPage = () => {
                   <h3 className="location-name">{loc.name}</h3>
                   {loc.address && <p className="location-address">{loc.address}</p>}
                   <div className="location-platforms">
-                    {loc.yandexUrl && <span className="location-badge platform-badge--yandex">Яндекс</span>}
-                    {loc.twogisUrl && <span className="location-badge platform-badge--2gis">2ГИС</span>}
-                    {loc.googleUrl && <span className="location-badge platform-badge--google">Google</span>}
-                    {!loc.yandexUrl && !loc.twogisUrl && !loc.googleUrl && (
-                      <span className="location-badge platform-badge--none">Нет ссылок</span>
+                    {loc.yandexUrl && (
+                      <a href={loc.yandexUrl} target="_blank" rel="noopener noreferrer" className="location-badge platform-badge--yandex">
+                        Яндекс ↗
+                      </a>
+                    )}
+                    {loc.twogisUrl ? (
+                      <a href={loc.twogisUrl} target="_blank" rel="noopener noreferrer" className="location-badge platform-badge--2gis">
+                        2ГИС ↗
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://2gis.ru/search/${encodeURIComponent(loc.name + (loc.address ? ', ' + loc.address : ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="location-badge platform-badge--2gis-search"
+                      >
+                        Найти на 2ГИС →
+                      </a>
+                    )}
+                    {loc.googleUrl ? (
+                      <a href={loc.googleUrl} target="_blank" rel="noopener noreferrer" className="location-badge platform-badge--google">
+                        Google ↗
+                      </a>
+                    ) : (
+                      <a
+                        href={`https://www.google.com/maps/search/${encodeURIComponent(loc.name + (loc.address ? ', ' + loc.address : ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="location-badge platform-badge--google-search"
+                      >
+                        Найти на Google →
+                      </a>
                     )}
                   </div>
                 </div>

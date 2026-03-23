@@ -149,6 +149,101 @@
   margin-top: var(--spacing-md);
 }
 
+/* Map section */
+.map-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.map-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+/* Selected organization panel */
+.selected-org-card {
+  margin-bottom: var(--spacing-xl);
+  border: 2px solid var(--color-primary);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.selected-org-info {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.selected-org-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: rgba(99, 102, 241, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.selected-org-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 4px 0;
+}
+
+.selected-org-address {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.selected-org-actions {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+/* Location list section title */
+.locations-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+/* Platform links */
+.location-badge {
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity var(--transition-base);
+}
+
+.location-badge:hover {
+  opacity: 0.7;
+}
+
+.platform-badge--2gis-search {
+  background-color: rgba(46, 139, 87, 0.08);
+  color: #1a6b42;
+  border: 1px dashed rgba(46, 139, 87, 0.3);
+}
+
+.platform-badge--google-search {
+  background-color: rgba(66, 133, 244, 0.08);
+  color: #2563eb;
+  border: 1px dashed rgba(66, 133, 244, 0.3);
+}
+
 @media (max-width: 768px) {
   .locations-page {
     padding: var(--spacing-lg);
