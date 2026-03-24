@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, Button } from '../../shared/ui';
 import { PlusIcon, MapPinIcon, TrashIcon, SearchIcon } from '../../shared/ui';
 import { YandexMap, type SelectedOrganization } from '../../shared/ui';
@@ -14,10 +14,18 @@ export const LocationsPage = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<SelectedOrganization | null>(null);
   const [addingFromMap, setAddingFromMap] = useState(false);
+  const selectedOrgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadLocations();
   }, []);
+
+  // Auto-scroll to selected org panel when it appears
+  useEffect(() => {
+    if (selectedOrg && selectedOrgRef.current) {
+      selectedOrgRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [selectedOrg]);
 
   const loadLocations = async () => {
     try {
@@ -125,32 +133,34 @@ export const LocationsPage = () => {
       </Card>
 
       {selectedOrg && (
-        <Card padding="lg" className="selected-org-card">
-          <div className="selected-org-info">
-            <div className="selected-org-icon">
-              <MapPinIcon size={24} />
+        <div ref={selectedOrgRef}>
+          <Card padding="lg" className="selected-org-card">
+            <div className="selected-org-info">
+              <div className="selected-org-icon">
+                <MapPinIcon size={24} />
+              </div>
+              <div className="selected-org-details">
+                <h3 className="selected-org-name">{selectedOrg.name}</h3>
+                {selectedOrg.address && (
+                  <p className="selected-org-address">{selectedOrg.address}</p>
+                )}
+              </div>
             </div>
-            <div className="selected-org-details">
-              <h3 className="selected-org-name">{selectedOrg.name}</h3>
-              {selectedOrg.address && (
-                <p className="selected-org-address">{selectedOrg.address}</p>
-              )}
+            <div className="selected-org-actions">
+              <Button
+                variant="primary"
+                onClick={handleAddFromMap}
+                disabled={addingFromMap}
+                icon={<PlusIcon size={18} />}
+              >
+                {addingFromMap ? 'Добавление...' : 'Добавить филиал'}
+              </Button>
+              <Button variant="outline" onClick={() => setSelectedOrg(null)}>
+                Отменить
+              </Button>
             </div>
-          </div>
-          <div className="selected-org-actions">
-            <Button
-              variant="primary"
-              onClick={handleAddFromMap}
-              disabled={addingFromMap}
-              icon={<PlusIcon size={18} />}
-            >
-              {addingFromMap ? 'Добавление...' : 'Добавить филиал'}
-            </Button>
-            <Button variant="outline" onClick={() => setSelectedOrg(null)}>
-              Отменить
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        </div>
       )}
 
       <h2 className="locations-section-title">
@@ -244,18 +254,178 @@ export const LocationsPage = () => {
   );
 };
 
-const AddLocationModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
+// --- Helper: resolve org name + address from a Yandex Maps URL ---
+// Primary strategy: extract org ID from URL and use ymaps.findOrganization(id)
+// which returns a GeoObject with accurate name, address, and CompanyMetaData.
+// Fallback: search by slug name via ymaps.search.Provider.
+const resolveYandexUrl = async (
+  url: string
+): Promise<{ name: string; address: string } | null> => {
+  const ymaps = window.ymaps;
+  if (!ymaps) return null;
+
+  // Decode URL to handle %2C etc.
+  let decodedUrl = url;
+  try { decodedUrl = decodeURIComponent(url); } catch {}
+
+  // Extract org slug and numeric ID from /org/{slug}/{id}/
+  const orgPathMatch = decodedUrl.match(/\/org\/([^/]+)\/(\d+)/);
+  const slug = orgPathMatch ? orgPathMatch[1] : '';
+  const orgId = orgPathMatch ? orgPathMatch[2] : null;
+  const slugName = slug.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Helper: extract org info from a GeoObject
+  const extractFromGeoObject = (obj: any): { name: string; address: string } | null => {
+    const props = obj.properties.getAll();
+    const meta =
+      props.CompanyMetaData ||
+      props.companyMetaData ||
+      (props.metaDataProperty && props.metaDataProperty.CompanyMetaData);
+    const name = (meta && meta.name) || props.name || '';
+    const address =
+      (meta && meta.address) ||
+      props.description ||
+      (typeof obj.getAddressLine === 'function' ? obj.getAddressLine() : '') ||
+      '';
+    return name ? { name, address } : null;
+  };
+
+  // Strategy 1: ymaps.findOrganization(orgId) — direct lookup by ID.
+  // Returns a GeoObject with exact org name, address, and metadata.
+  if (orgId && typeof ymaps.findOrganization === 'function') {
+    try {
+      const orgGeoObject: any = await new Promise((resolve, reject) => {
+        ymaps.findOrganization(orgId).then(resolve, reject);
+      });
+      const result = extractFromGeoObject(orgGeoObject);
+      if (result) return result;
+    } catch {
+      // Organization not found or API error, continue to fallbacks
+    }
+  }
+
+  // Strategy 2: Search by slug name via ymaps.search.Provider (business search).
+  // Yandex search handles Latin transliteration of Russian names well.
+  if (slugName) {
+    // Build bounding box around ll= coordinates if available
+    const llMatch =
+      decodedUrl.match(/[?&]ll=([0-9.]+),([0-9.]+)/) ||
+      decodedUrl.match(/[?&]pt=([0-9.]+),([0-9.]+)/);
+    let searchBounds: number[][] | undefined;
+    if (llMatch) {
+      const lng = parseFloat(llMatch[1]);
+      const lat = parseFloat(llMatch[2]);
+      searchBounds = [[lat - 1, lng - 1], [lat + 1, lng + 1]];
+    }
+
+    try {
+      const provider = new (ymaps as any).search.Provider('yandex#search');
+      const options: any = { results: 10 };
+      if (searchBounds) {
+        options.boundedBy = searchBounds;
+        options.strictBounds = false;
+      }
+
+      const res: any = await new Promise((resolve, reject) => {
+        provider.geocode(slugName, options).then(resolve, reject);
+      });
+
+      const count = res.geoObjects.getLength();
+
+      // First pass: match by org ID
+      if (orgId) {
+        for (let i = 0; i < count; i++) {
+          const obj = res.geoObjects.get(i);
+          const props = obj.properties.getAll();
+          const meta =
+            props.CompanyMetaData ||
+            props.companyMetaData ||
+            (props.metaDataProperty && props.metaDataProperty.CompanyMetaData);
+          if (meta && String(meta.id) === orgId) {
+            return extractFromGeoObject(obj);
+          }
+        }
+      }
+
+      // Second pass: use first result
+      if (count > 0) {
+        const result = extractFromGeoObject(res.geoObjects.get(0));
+        if (result) return result;
+      }
+    } catch {
+      // search.Provider not available, continue
+    }
+  }
+
+  // Final fallback: just the slug as name, no address
+  if (slugName) {
+    return { name: slugName, address: '' };
+  }
+
+  return null;
+};
+
+const AddLocationModal = ({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
   const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
+  const [resolvedName, setResolvedName] = useState('');
+  const [resolvedAddress, setResolvedAddress] = useState('');
   const [yandexUrl, setYandexUrl] = useState('');
   const [twogisUrl, setTwogisUrl] = useState('');
   const [googleUrl, setGoogleUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Resolve org info from a Yandex Maps URL
+  const resolveUrl = async (url: string) => {
+    const trimmed = url.trim();
+    if (!trimmed) {
+      setResolvedName('');
+      setResolvedAddress('');
+      return;
+    }
+
+    setResolving(true);
+    try {
+      const result = await resolveYandexUrl(trimmed);
+      if (result) {
+        setResolvedName(result.name);
+        setResolvedAddress(result.address);
+        // Auto-fill name if user hasn't typed one
+        if (!name.trim() && result.name) {
+          setName(result.name);
+        }
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  // Trigger on blur (manual typing)
+  const handleYandexUrlBlur = () => {
+    resolveUrl(yandexUrl);
+  };
+
+  // Trigger immediately on paste
+  const handleYandexUrlPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    // The state hasn't updated yet from paste, so use the pasted value directly
+    setYandexUrl(pasted);
+    resolveUrl(pasted);
+  };
+
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      setError('Укажите название');
+    const finalName = name.trim() || resolvedName;
+    if (!finalName) {
+      setError('Укажите название или вставьте URL на Яндекс.Картах');
       return;
     }
 
@@ -263,8 +433,8 @@ const AddLocationModal = ({ onClose, onSuccess }: { onClose: () => void; onSucce
       setLoading(true);
       setError(null);
       await locationApi.createLocation({
-        name: name.trim(),
-        address: address.trim() || undefined,
+        name: finalName,
+        address: resolvedAddress || undefined,
         yandexUrl: yandexUrl.trim() || undefined,
         twogisUrl: twogisUrl.trim() || undefined,
         googleUrl: googleUrl.trim() || undefined,
@@ -286,19 +456,38 @@ const AddLocationModal = ({ onClose, onSuccess }: { onClose: () => void; onSucce
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <Card padding="lg">
           <div style={{ padding: '0 0 var(--spacing-lg) 0' }}>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Добавить филиал
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '1.25rem',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              Добавить филиал вручную
             </h2>
           </div>
           <div className="modal-form">
             {error && (
-              <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px' }}>
+              <div
+                style={{
+                  padding: '12px',
+                  backgroundColor: '#fee',
+                  color: '#c00',
+                  borderRadius: '6px',
+                }}
+              >
                 {error}
               </div>
             )}
 
             <div className="form-group">
-              <label className="form-label">Название *</label>
+              <label className="form-label">
+                Название{' '}
+                <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>
+                  (заполнится из URL, если оставить пустым)
+                </span>
+              </label>
               <input
                 type="text"
                 value={name}
@@ -310,28 +499,39 @@ const AddLocationModal = ({ onClose, onSuccess }: { onClose: () => void; onSucce
             </div>
 
             <div className="form-group">
-              <label className="form-label">Адрес</label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Москва, ул. Арбат, 12"
-                className="date-input"
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div className="form-group">
               <label className="form-label">URL на Яндекс.Картах</label>
               <input
                 type="text"
                 value={yandexUrl}
                 onChange={(e) => setYandexUrl(e.target.value)}
+                onBlur={handleYandexUrlBlur}
+                onPaste={handleYandexUrlPaste}
                 placeholder="https://yandex.ru/maps/org/..."
                 className="date-input"
                 style={{ width: '100%' }}
               />
             </div>
+
+            {/* Resolved info preview */}
+            {resolving && (
+              <div className="resolve-preview">
+                Определение организации...
+              </div>
+            )}
+            {!resolving && (resolvedName || resolvedAddress) && (
+              <div className="resolve-preview resolve-preview--success">
+                {resolvedName && (
+                  <p className="resolve-preview-line">
+                    <strong>Организация:</strong> {resolvedName}
+                  </p>
+                )}
+                {resolvedAddress && (
+                  <p className="resolve-preview-line">
+                    <strong>Адрес:</strong> {resolvedAddress}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">URL на 2ГИС</label>
@@ -361,7 +561,12 @@ const AddLocationModal = ({ onClose, onSuccess }: { onClose: () => void; onSucce
               <Button variant="outline" onClick={onClose} fullWidth disabled={loading}>
                 Отмена
               </Button>
-              <Button variant="primary" onClick={handleSubmit} fullWidth disabled={loading}>
+              <Button
+                variant="primary"
+                onClick={handleSubmit}
+                fullWidth
+                disabled={loading || resolving}
+              >
                 {loading ? 'Создание...' : 'Добавить'}
               </Button>
             </div>
