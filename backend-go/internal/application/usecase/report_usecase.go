@@ -42,6 +42,7 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 	if err != nil {
 		return nil, fmt.Errorf("unsupported URL: %w", err)
 	}
+	reportSource := p.Source()
 
 	// 2. Parse reviews
 	// Extend PeriodEnd to end of day (23:59:59) so the entire day is included
@@ -116,6 +117,7 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		Title:              dto.Title,
 		PeriodStart:        dto.PeriodStart,
 		PeriodEnd:          dto.PeriodEnd,
+		Source:             reportSource,
 		Summary:            &aiAnalysis.Summary,
 		Insights:           aiAnalysis.Insights,
 		Recommendations:    aiAnalysis.Recommendations,

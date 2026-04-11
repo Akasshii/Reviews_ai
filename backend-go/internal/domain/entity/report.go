@@ -13,6 +13,7 @@ type Report struct {
 	Title               string            `json:"title"`
 	PeriodStart         time.Time         `json:"periodStart"`
 	PeriodEnd           time.Time         `json:"periodEnd"`
+	Source              string            `json:"source"`
 	Summary             *string           `json:"summary,omitempty"`
 	Insights            pq.StringArray    `json:"insights"`
 	Recommendations     pq.StringArray    `json:"recommendations"`
