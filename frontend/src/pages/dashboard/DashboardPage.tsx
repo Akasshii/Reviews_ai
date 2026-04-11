@@ -13,6 +13,9 @@ import './DashboardPage.css';
 export const DashboardPage = () => {
   const navigate = useNavigate();
   const [recentReports, setRecentReports] = useState<Report[]>([]);
+  const [allReports, setAllReports] = useState<Report[]>([]);
+  const [recentReviews, setRecentReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [totalReports, setTotalReports] = useState(0);
 
@@ -27,35 +30,53 @@ export const DashboardPage = () => {
       const safeData = Array.isArray(data) ? data : [];
       const normalized = safeData.map(normalizeReport);
 
-      // Берём 3 последних отчёта
+      setAllReports(normalized);
       setRecentReports(normalized.slice(0, 3));
       setTotalReports(normalized.length);
+
+      if (normalized.length > 0) {
+        setReviewsLoading(true);
+        const top3 = normalized.slice(0, 3);
+        try {
+          const detailed = await Promise.all(
+            top3.map(r => reportApi.getReportById(r.id).catch(() => null))
+          );
+          const reviews = detailed
+            .filter(Boolean)
+            .flatMap(report => {
+              const norm = normalizeReport(report!);
+              return (norm.reviews || []).map((rev: any) => ({
+                ...rev,
+                reportTitle: norm.title,
+              }));
+            })
+            .slice(0, 10);
+          setRecentReviews(reviews);
+        } catch {
+          setRecentReviews([]);
+        } finally {
+          setReviewsLoading(false);
+        }
+      }
     } catch (err) {
       console.error('Failed to load reports:', err);
+      setAllReports([]);
       setRecentReports([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Собираем 10 последних отзывов из всех отчётов
-  const recentReviews = recentReports
-    .flatMap(report => (report.reviews || []).map(review => ({ ...review, reportTitle: report.title })))
-    .slice(0, 10);
-
-  // Рассчитываем статистику из последних отчётов
-  const stats = {
-    totalReviews: recentReports.reduce((acc, r) => acc + (r.stats?.totalReviews || 0), 0),
-    averageRating: recentReports.length > 0
-      ? recentReports.reduce((acc, r) => acc + (r.stats?.averageRating || 0), 0) / recentReports.length
-      : 0,
-    positivePercentage: recentReports.length > 0
-      ? Math.round(
-          (recentReports.reduce((acc, r) => acc + (r.stats?.positiveReviews || 0), 0) /
-          recentReports.reduce((acc, r) => acc + (r.stats?.totalReviews || 0), 0)) * 100
-        )
-      : 0,
-  };
+  // Считаем статистику из ВСЕХ отчётов, а не из 3 последних
+  const totalReviewsCount = allReports.reduce((acc, r) => acc + (r.stats?.totalReviews || 0), 0);
+  const totalPositive = allReports.reduce((acc, r) => acc + (r.stats?.positiveReviews || 0), 0);
+  const avgRating = allReports.length > 0
+    ? allReports.reduce((acc, r) => acc + (r.stats?.averageRating || 0), 0) / allReports.length
+    : 0;
+  const positivePercentage = totalReviewsCount > 0
+    ? Math.round((totalPositive / totalReviewsCount) * 100)
+    : 0;
+  const stats = { totalReviews: totalReviewsCount, averageRating: avgRating, positivePercentage };
 
   return (
     <div className="dashboard-page">
@@ -153,13 +174,15 @@ export const DashboardPage = () => {
               <CardTitle>Последние отзывы</CardTitle>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {loading || reviewsLoading ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
-                  Загрузка...
+                  Загрузка отзывов...
                 </div>
               ) : recentReviews.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--color-text-secondary)' }}>
-                  Отзывов пока нет
+                  {totalReports === 0
+                    ? 'Отзывов пока нет. Создайте первый отчёт!'
+                    : 'Отзывов в последних отчётах нет'}
                 </div>
               ) : (
                 <div className="reviews-list">
@@ -169,7 +192,7 @@ export const DashboardPage = () => {
                         <div className="review-author-info">
                           <span className="review-author">{review.author}</span>
                           <span className={`review-platform-badge review-platform-badge--${review.platform}`}>
-                            {review.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
+                            {review.platform === 'yandex' ? 'Яндекс' : review.platform === 'google' ? 'Google' : '2ГИС'}
                           </span>
                         </div>
                         <div className="review-rating">

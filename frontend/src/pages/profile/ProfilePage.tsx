@@ -12,10 +12,14 @@ export const ProfilePage = () => {
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [company, setCompany] = useState('');
+  const [position, setPosition] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
   const [displayEmail, setDisplayEmail] = useState(currentUser?.email || '');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSuccessMsg] = useState(false);
   const [stats, setStats] = useState({ totalReviews: 0, totalReports: 0, platforms: 0 });
 
   useEffect(() => {
@@ -23,6 +27,7 @@ export const ProfilePage = () => {
       setName(profile.name);
       setEmail(profile.email);
       setCompany(profile.company || '');
+      setPosition(profile.position || '');
       setDisplayName(profile.name);
       setDisplayEmail(profile.email);
     }).catch(() => {
@@ -39,10 +44,34 @@ export const ProfilePage = () => {
     });
   }, []);
 
-  const handleSave = () => {
-    setDisplayName(name);
-    setDisplayEmail(email);
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (!name.trim()) {
+      setSaveError('Имя не может быть пустым');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSaveError(null);
+
+      await userApi.updateProfile({
+        name: name.trim(),
+        company: company.trim() || undefined,
+        position: position.trim() || undefined,
+      });
+
+      authApi.updateCurrentUser({ name: name.trim() });
+
+      setDisplayName(name.trim());
+      setDisplayEmail(email);
+      setIsEditing(false);
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 3000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Ошибка сохранения');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -98,9 +127,8 @@ export const ProfilePage = () => {
                 label="Email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 icon={<MailIcon size={20} />}
-                disabled={!isEditing}
+                disabled={true}
                 fullWidth
               />
               <Input
@@ -110,13 +138,31 @@ export const ProfilePage = () => {
                 disabled={!isEditing}
                 fullWidth
               />
+              <Input
+                label="Должность"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                disabled={!isEditing}
+                fullWidth
+              />
+
+              {saveError && (
+                <div style={{ padding: '10px 12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', fontSize: '0.875rem' }}>
+                  {saveError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div style={{ padding: '10px 12px', backgroundColor: '#d1fae5', color: '#065f46', borderRadius: '6px', fontSize: '0.875rem' }}>
+                  Профиль успешно сохранён
+                </div>
+              )}
 
               {isEditing && (
                 <div className="profile-form-actions">
                   <Button variant="outline" onClick={handleCancel} fullWidth>
                     Отмена
                   </Button>
-                  <Button variant="primary" onClick={handleSave} fullWidth>
+                  <Button variant="primary" onClick={handleSave} fullWidth loading={saving}>
                     Сохранить
                   </Button>
                 </div>

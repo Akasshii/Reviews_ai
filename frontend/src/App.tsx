@@ -4,10 +4,11 @@ import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
 import { ForgotPasswordPage } from './pages/forgot-password';
 import { createAppRouter } from './app/providers/router';
+import { authApi } from './shared/api/authApi';
 import './app/styles/global.css';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => authApi.isAuthenticated());
   const [authView, setAuthView] = useState<'login' | 'register' | 'forgot-password'>('login');
 
   const handleLogin = () => {

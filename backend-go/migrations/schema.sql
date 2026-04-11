@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS reports (
   title VARCHAR(255) NOT NULL,
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
+  source VARCHAR(50) DEFAULT 'yandex',
   summary TEXT,
   insights TEXT[], -- Array of strings
   recommendations TEXT[], -- Array of strings
