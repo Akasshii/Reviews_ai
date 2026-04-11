@@ -28,11 +28,11 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 
 	query := `
 		INSERT INTO reports (
-			id, user_id, title, period_start, period_end, summary,
+			id, user_id, title, period_start, period_end, source, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 	`
 	_, err = r.db.ExecContext(ctx, query,
 		report.ID,
@@ -40,6 +40,7 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 		report.Title,
 		report.PeriodStart,
 		report.PeriodEnd,
+		report.Source,
 		report.Summary,
 		pq.Array(report.Insights),
 		pq.Array(report.Recommendations),
@@ -58,7 +59,7 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*entity.Report, error) {
 	query := `
 		SELECT
-			id, user_id, title, period_start, period_end, summary,
+			id, user_id, title, period_start, period_end, source, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
@@ -74,6 +75,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 		&report.Title,
 		&report.PeriodStart,
 		&report.PeriodEnd,
+		&report.Source,
 		&report.Summary,
 		&insights,
 		&recommendations,
@@ -172,7 +174,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Report, error) {
 	query := `
 		SELECT
-			id, user_id, title, period_start, period_end, summary,
+			id, user_id, title, period_start, period_end, source, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
@@ -198,6 +200,7 @@ func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUI
 			&report.Title,
 			&report.PeriodStart,
 			&report.PeriodEnd,
+			&report.Source,
 			&report.Summary,
 			&insights,
 			&recommendations,

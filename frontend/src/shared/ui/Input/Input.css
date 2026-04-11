@@ -70,6 +70,23 @@
   pointer-events: none;
 }
 
+.input--with-suffix {
+  padding-right: 2.5rem;
+}
+
+.input-suffix {
+  position: absolute;
+  right: 0.625rem;
+  display: flex;
+  align-items: center;
+  color: var(--color-text-disabled);
+  cursor: pointer;
+}
+
+.input-suffix:hover {
+  color: var(--color-text-secondary);
+}
+
 .input-error {
   font-size: 0.875rem;
   color: var(--color-error);

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
-import { PlusIcon, FilterIcon, DownloadIcon, FileTextIcon, CalendarIcon, StarIcon, TrashIcon } from '../../shared/ui';
+import { PlusIcon, FilterIcon, CalendarIcon, StarIcon, TrashIcon } from '../../shared/ui';
 import { reportApi } from '../../shared/api/reportApi';
+import { locationApi } from '../../shared/api/locationApi';
 import { normalizeReport } from '../../shared/lib/reportHelpers';
-import type { Report } from '../../shared/types';
+import type { Report, Location } from '../../shared/types';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import './ReportsPage.css';
@@ -15,7 +16,7 @@ export const ReportsPage = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis'>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis' | 'google'>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -144,6 +145,13 @@ export const ReportsPage = () => {
             >
               2ГИС
             </Button>
+            <Button
+              variant={selectedPlatform === 'google' ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => setSelectedPlatform('google')}
+            >
+              Google Maps
+            </Button>
           </div>
         </div>
       </div>
@@ -175,12 +183,12 @@ export const ReportsPage = () => {
                       <div
                         className="report-rating-circle"
                         style={{
-                          backgroundColor: `${getRatingColor(report.stats.averageRating)}15`,
-                          color: getRatingColor(report.stats.averageRating),
+                          backgroundColor: `${getRatingColor(report.stats!.averageRating)}15`,
+                          color: getRatingColor(report.stats!.averageRating),
                         }}
                       >
-                        <span className="report-rating-value">{report.stats.averageRating.toFixed(1)}</span>
-                        <StarIcon size={18} color={getRatingColor(report.stats.averageRating)} />
+                        <span className="report-rating-value">{report.stats!.averageRating.toFixed(1)}</span>
+                        <StarIcon size={18} color={getRatingColor(report.stats!.averageRating)} />
                       </div>
                     </div>
 
@@ -195,11 +203,15 @@ export const ReportsPage = () => {
                         <div className="report-card-meta-new">
                           <CalendarIcon size={14} />
                           <span>
-                            {format(report.period.start, 'd MMM', { locale: ru })} - {format(report.period.end, 'd MMM yyyy', { locale: ru })}
+                            {format(report.period!.start, 'd MMM', { locale: ru })} - {format(report.period!.end, 'd MMM yyyy', { locale: ru })}
                           </span>
                           <span className="meta-separator">•</span>
                           <span className="platform-tag">
-                            {report.platform === 'all' ? 'Все платформы' : report.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
+                            {report.platform === 'all' ? 'Все платформы'
+                            : report.platform === 'yandex' ? 'Яндекс.Карты'
+                            : report.platform === '2gis' ? '2ГИС'
+                            : report.platform === 'google' ? 'Google Maps'
+                            : report.platform}
                           </span>
                         </div>
                       </div>
@@ -207,19 +219,19 @@ export const ReportsPage = () => {
                       <div className="report-card-stats-row">
                         <div className="report-stat-inline">
                           <span className="stat-inline-label">Отзывов:</span>
-                          <span className="stat-inline-value">{report.stats.totalReviews}</span>
+                          <span className="stat-inline-value">{report.stats!.totalReviews}</span>
                         </div>
                         <div className="report-stat-inline stat-inline--positive">
                           <span className="stat-inline-label">Позитивные:</span>
-                          <span className="stat-inline-value">{report.stats.positiveReviews}</span>
+                          <span className="stat-inline-value">{report.stats!.positiveReviews}</span>
                         </div>
                         <div className="report-stat-inline stat-inline--neutral">
                           <span className="stat-inline-label">Нейтральные:</span>
-                          <span className="stat-inline-value">{report.stats.neutralReviews}</span>
+                          <span className="stat-inline-value">{report.stats!.neutralReviews}</span>
                         </div>
                         <div className="report-stat-inline stat-inline--negative">
                           <span className="stat-inline-label">Негативные:</span>
-                          <span className="stat-inline-value">{report.stats.negativeReviews}</span>
+                          <span className="stat-inline-value">{report.stats!.negativeReviews}</span>
                         </div>
                       </div>
 
@@ -269,30 +281,88 @@ export const ReportsPage = () => {
   );
 };
 
-const detectPlatform = (url: string): 'yandex' | '2gis' | null => {
-  if (/yandex\.(ru|com)\/maps/i.test(url)) return 'yandex';
-  if (/2gis\.(ru|com)/i.test(url)) return '2gis';
-  return null;
-};
-
 const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [url, setUrl] = useState('');
+  const [selectedPlatform, setSelectedPlatform] = useState<'yandex' | '2gis' | 'google' | 'all'>('yandex');
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const detectedPlatform = url.trim() ? detectPlatform(url.trim()) : undefined;
+  useEffect(() => {
+    locationApi.getLocations()
+      .then(data => {
+        setLocations(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setLocations([]))
+      .finally(() => setLocationsLoading(false));
+  }, []);
+
+  const selectedLocation = locations.find(l => l.id === selectedLocationId);
+
+  const derivedUrl =
+    selectedPlatform === 'yandex' ? selectedLocation?.yandexUrl :
+    selectedPlatform === '2gis' ? selectedLocation?.twogisUrl :
+    selectedPlatform === 'google' ? selectedLocation?.googleUrl :
+    undefined; // 'all' — обрабатывается отдельно в handleGenerate
+
+  const locationMissingUrl = selectedLocation && (
+    selectedPlatform === 'all'
+      ? !selectedLocation.yandexUrl && !selectedLocation.twogisUrl && !selectedLocation.googleUrl
+      : !derivedUrl
+  );
+
+  const platformLabel = (p: string) =>
+    p === 'yandex' ? 'Яндекс.Карты' : p === '2gis' ? '2ГИС' : p === 'google' ? 'Google Maps' : p;
 
   const handleGenerate = async () => {
-    if (!title || !url || !startDate || !endDate) {
-      setError('Заполните все поля');
+    if (!title.trim()) { setError('Укажите название отчёта'); return; }
+    if (!selectedLocationId) { setError('Выберите филиал'); return; }
+    if (!startDate || !endDate) { setError('Укажите период'); return; }
+    if (new Date(startDate) > new Date(endDate)) {
+      setError('Дата начала не может быть позже даты окончания');
       return;
     }
 
-    if (!detectedPlatform) {
-      setError('Неподдерживаемая платформа. Используйте URL Яндекс.Карт или 2ГИС');
+    if (selectedPlatform === 'all') {
+      const urlsToCreate = [
+        { url: selectedLocation?.yandexUrl, label: 'Яндекс.Карты' },
+        { url: selectedLocation?.twogisUrl, label: '2ГИС' },
+        { url: selectedLocation?.googleUrl, label: 'Google' },
+      ].filter((p): p is { url: string; label: string } => !!p.url);
+
+      if (urlsToCreate.length === 0) {
+        setError(`У филиала "${selectedLocation?.name}" нет ни одной ссылки. Добавьте их в разделе Филиалы.`);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        for (const { url, label } of urlsToCreate) {
+          await reportApi.createReport({
+            title: `${title.trim()} — ${label}`,
+            url,
+            periodStart: new Date(startDate).toISOString(),
+            periodEnd: new Date(endDate).toISOString(),
+          });
+        }
+        onSuccess();
+        onClose();
+      } catch (err: any) {
+        setError(err.message || 'Ошибка создания отчёта');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!derivedUrl) {
+      setError(`У филиала "${selectedLocation?.name}" нет ссылки на ${platformLabel(selectedPlatform)}. Добавьте её в разделе Филиалы.`);
       return;
     }
 
@@ -300,8 +370,8 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
       setLoading(true);
       setError(null);
       await reportApi.createReport({
-        title,
-        url,
+        title: title.trim(),
+        url: derivedUrl,
         periodStart: new Date(startDate).toISOString(),
         periodEnd: new Date(endDate).toISOString(),
       });
@@ -314,103 +384,171 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
     }
   };
 
-  const handleOverlayClick = () => {
-    if (!loading) onClose();
-  };
-
   return (
-    <div className="modal-overlay" onClick={handleOverlayClick}>
+    <div className="modal-overlay" onClick={() => !loading && onClose()}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <Card padding="lg">
           <CardHeader>
-            <CardTitle>Создать новый отчет</CardTitle>
+            <CardTitle>Создать новый отчёт</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div className="spinner" />
                 <p style={{ marginTop: '16px', fontSize: '1rem', color: 'var(--color-text-secondary)' }}>
-                  Собираем отзывы... Это может занять до 30 секунд
+                  {selectedPlatform === 'all'
+                    ? 'Создаём отчёты для всех платформ... Это может занять несколько минут'
+                    : 'Собираем отзывы... Это может занять до 30 секунд'}
                 </p>
               </div>
             ) : (
-            <div className="modal-form">
-              {error && (
-                <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px', marginBottom: '16px' }}>
-                  {error}
-                </div>
-              )}
-
-              <div className="form-group">
-                <label className="form-label">Название отчёта</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Например: Анализ за декабрь 2024"
-                  className="date-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">URL организации (Яндекс.Карты или 2ГИС)</label>
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://yandex.ru/maps/org/... или https://2gis.ru/.../firm/..."
-                  className="date-input"
-                  style={{ width: '100%' }}
-                />
-                {url.trim() && (
-                  <div style={{ marginTop: '6px' }}>
-                    {detectedPlatform === 'yandex' && (
-                      <span className="platform-detect-badge platform-detect-badge--yandex">Яндекс.Карты</span>
-                    )}
-                    {detectedPlatform === '2gis' && (
-                      <span className="platform-detect-badge platform-detect-badge--2gis">2ГИС</span>
-                    )}
-                    {detectedPlatform === null && (
-                      <span className="platform-detect-badge platform-detect-badge--unknown">Неподдерживаемая платформа</span>
-                    )}
+              <div className="modal-form">
+                {error && (
+                  <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px' }}>
+                    {error}
                   </div>
                 )}
-              </div>
 
-              <div className="form-group">
-                <label className="form-label">Период</label>
-                <div className="date-inputs">
+                {/* Название */}
+                <div className="form-group">
+                  <label className="form-label">Название отчёта</label>
                   <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Например: Анализ за апрель 2025"
                     className="date-input"
-                  />
-                  <span>—</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="date-input"
+                    style={{ width: '100%' }}
                   />
                 </div>
-              </div>
 
-              <div className="modal-actions">
-                <Button variant="outline" onClick={onClose} fullWidth>
-                  Отмена
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={handleGenerate}
-                  fullWidth
-                  disabled={!detectedPlatform && url.trim().length > 0}
-                >
-                  Создать отчет
-                </Button>
+                {/* Платформа */}
+                <div className="form-group">
+                  <label className="form-label">Платформа</label>
+                  <div className="filter-buttons">
+                    <Button
+                      variant={selectedPlatform === 'yandex' ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPlatform('yandex')}
+                    >
+                      Яндекс.Карты
+                    </Button>
+                    <Button
+                      variant={selectedPlatform === '2gis' ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPlatform('2gis')}
+                    >
+                      2ГИС
+                    </Button>
+                    <Button
+                      variant={selectedPlatform === 'google' ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPlatform('google')}
+                    >
+                      Google Maps
+                    </Button>
+                    <Button
+                      variant={selectedPlatform === 'all' ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => setSelectedPlatform('all')}
+                    >
+                      Все
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Филиал */}
+                <div className="form-group">
+                  <label className="form-label">Филиал</label>
+                  {locationsLoading ? (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                      Загрузка филиалов...
+                    </p>
+                  ) : locations.length === 0 ? (
+                    <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                      Нет сохранённых филиалов.{' '}
+                      <button
+                        style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', padding: 0, fontSize: 'inherit', textDecoration: 'underline' }}
+                        onClick={() => { onClose(); navigate('/locations'); }}
+                      >
+                        Перейти в Филиалы
+                      </button>
+                    </p>
+                  ) : (
+                    <>
+                      <select
+                        value={selectedLocationId}
+                        onChange={(e) => { setSelectedLocationId(e.target.value); setError(null); }}
+                        className="date-input"
+                        style={{ width: '100%' }}
+                      >
+                        <option value="">— Выберите филиал —</option>
+                        {locations.map(loc => {
+                          const hasUrl =
+                            selectedPlatform === 'yandex' ? !!loc.yandexUrl :
+                            selectedPlatform === '2gis' ? !!loc.twogisUrl :
+                            selectedPlatform === 'google' ? !!loc.googleUrl :
+                            !!(loc.yandexUrl || loc.twogisUrl || loc.googleUrl);
+                          return (
+                            <option key={loc.id} value={loc.id}>
+                              {loc.name}{!hasUrl ? ' (нет ссылки)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {locationMissingUrl && (
+                        <p style={{ fontSize: '0.8125rem', color: 'var(--color-warning)', marginTop: '4px' }}>
+                          {selectedPlatform === 'all'
+                            ? 'У этого филиала нет ни одной ссылки.'
+                            : `У этого филиала нет ссылки на ${platformLabel(selectedPlatform)}.`}
+                          {' '}Добавьте{selectedPlatform === 'all' ? ' их' : ' её'} в{' '}
+                          <button
+                            style={{ background: 'none', border: 'none', color: 'var(--color-primary)', cursor: 'pointer', padding: 0, fontSize: 'inherit', textDecoration: 'underline' }}
+                            onClick={() => { onClose(); navigate('/locations'); }}
+                          >
+                            разделе Филиалы
+                          </button>
+                          .
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Период */}
+                <div className="form-group">
+                  <label className="form-label">Период</label>
+                  <div className="date-inputs">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="date-input"
+                    />
+                    <span>—</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="date-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-actions">
+                  <Button variant="outline" onClick={onClose} fullWidth>
+                    Отмена
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleGenerate}
+                    fullWidth
+                    disabled={locationsLoading || locations.length === 0}
+                  >
+                    Создать отчёт
+                  </Button>
+                </div>
               </div>
-            </div>
             )}
           </CardContent>
         </Card>

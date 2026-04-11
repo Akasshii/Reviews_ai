@@ -25,6 +25,7 @@ const categoryColors: Record<ReviewCategory, string> = {
   price: '#ef4444',
 };
 
+
 export const ReportDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -114,8 +115,8 @@ export const ReportDetailPage = () => {
             <div className="report-meta-item">
               <CalendarIcon size={18} />
               <span>
-                {format(report.period.start, 'd MMMM', { locale: ru })} -{' '}
-                {format(report.period.end, 'd MMMM yyyy', { locale: ru })}
+                {format(report.period!.start, 'd MMMM', { locale: ru })} -{' '}
+                {format(report.period!.end, 'd MMMM yyyy', { locale: ru })}
               </span>
             </div>
             <span className="platform-badge">
@@ -125,10 +126,10 @@ export const ReportDetailPage = () => {
         </div>
         <div
           className="report-rating-badge"
-          style={{ backgroundColor: `${getRatingColor(report.stats.averageRating)}15`, color: getRatingColor(report.stats.averageRating) }}
+          style={{ backgroundColor: `${getRatingColor(report.stats!.averageRating)}15`, color: getRatingColor(report.stats!.averageRating) }}
         >
-          <span className="rating-value">{report.stats.averageRating.toFixed(1)}</span>
-          <StarIcon size={24} color={getRatingColor(report.stats.averageRating)} />
+          <span className="rating-value">{report.stats!.averageRating.toFixed(1)}</span>
+          <StarIcon size={24} color={getRatingColor(report.stats!.averageRating)} />
         </div>
       </div>
 
@@ -168,10 +169,10 @@ export const ReportDetailPage = () => {
                 <div className="summary-section">
                   <h4 className="summary-section-title">Анализ тональности</h4>
                   <p className="report-summary-text">
-                    За анализируемый период получено {report.stats.totalReviews} отзывов.
-                    Большая часть отзывов ({Math.round((report.stats.positiveReviews / report.stats.totalReviews) * 100)}%)
+                    За анализируемый период получено {report.stats!.totalReviews} отзывов.
+                    Большая часть отзывов ({Math.round((report.stats!.positiveReviews / report.stats!.totalReviews) * 100)}%)
                     имеют позитивную окраску, что свидетельствует о высоком уровне удовлетворенности клиентов.
-                    {report.stats.negativeReviews > 0 && ` Количество негативных отзывов составляет ${report.stats.negativeReviews} (${Math.round((report.stats.negativeReviews / report.stats.totalReviews) * 100)}%),
+                    {report.stats!.negativeReviews > 0 && ` Количество негативных отзывов составляет ${report.stats!.negativeReviews} (${Math.round((report.stats!.negativeReviews / report.stats!.totalReviews) * 100)}%),
                     что требует внимания к выявленным проблемам.`}
                   </p>
                 </div>
@@ -201,9 +202,9 @@ export const ReportDetailPage = () => {
                 <div className="summary-section">
                   <h4 className="summary-section-title">Динамика и рекомендации</h4>
                   <p className="report-summary-text">
-                    Средний рейтинг {report.stats.averageRating.toFixed(1)} демонстрирует
-                    {report.stats.averageRating >= 4.5 ? ' отличные показатели работы' :
-                     report.stats.averageRating >= 4 ? ' хорошие показатели с потенциалом улучшения' :
+                    Средний рейтинг {report.stats!.averageRating.toFixed(1)} демонстрирует
+                    {report.stats!.averageRating >= 4.5 ? ' отличные показатели работы' :
+                     report.stats!.averageRating >= 4 ? ' хорошие показатели с потенциалом улучшения' :
                      ' необходимость принятия мер по повышению качества обслуживания'}.
                     Основные рекомендации включают: {report.recommendations.slice(0, 2).join('; ').toLowerCase()}.
                   </p>
@@ -218,25 +219,25 @@ export const ReportDetailPage = () => {
         <Card padding="md" hoverable>
           <div className="stat-item">
             <span className="stat-label">Всего отзывов</span>
-            <span className="stat-value">{report.stats.totalReviews}</span>
+            <span className="stat-value">{report.stats!.totalReviews}</span>
           </div>
         </Card>
         <Card padding="md" hoverable>
           <div className="stat-item stat-item--positive">
             <span className="stat-label">Позитивные</span>
-            <span className="stat-value">{report.stats.positiveReviews}</span>
+            <span className="stat-value">{report.stats!.positiveReviews}</span>
           </div>
         </Card>
         <Card padding="md" hoverable>
           <div className="stat-item stat-item--neutral">
             <span className="stat-label">Нейтральные</span>
-            <span className="stat-value">{report.stats.neutralReviews}</span>
+            <span className="stat-value">{report.stats!.neutralReviews}</span>
           </div>
         </Card>
         <Card padding="md" hoverable>
           <div className="stat-item stat-item--negative">
             <span className="stat-label">Негативные</span>
-            <span className="stat-value">{report.stats.negativeReviews}</span>
+            <span className="stat-value">{report.stats!.negativeReviews}</span>
           </div>
         </Card>
       </div>
@@ -251,44 +252,37 @@ export const ReportDetailPage = () => {
           </CardHeader>
           <CardContent>
             <div className="categories-grid">
-              {report.categoryStats.map((cat) => (
-                <div key={cat.category} className="category-card">
-                  <div className="category-header">
-                    <div
-                      className="category-icon"
-                      style={{ backgroundColor: `${categoryColors[cat.category]}15`, color: categoryColors[cat.category] }}
-                    >
-                      {categoryLabels[cat.category]}
+              {report.categoryStats.map((cat) => {
+                const ratingColor = getRatingColor(cat.averageRating);
+                return (
+                  <div
+                    key={cat.category}
+                    className="category-card"
+                    style={{
+                      border: `2px solid ${ratingColor}`,
+                      borderRadius: '12px',
+                      padding: '16px',
+                      backgroundColor: `${ratingColor}0d`,
+                    }}
+                  >
+                    <div className="category-header">
+                      <div
+                        className="category-icon"
+                        style={{ backgroundColor: `${ratingColor}20`, color: ratingColor }}
+                      >
+                        {categoryLabels[cat.category]}
+                      </div>
+                      <div
+                        className="category-rating"
+                        style={{ color: ratingColor }}
+                      >
+                        {cat.averageRating.toFixed(1)}
+                      </div>
                     </div>
-                    <div
-                      className="category-rating"
-                      style={{ color: getRatingColor(cat.averageRating) }}
-                    >
-                      {cat.averageRating.toFixed(1)}
-                    </div>
+                    <div className="category-count">{cat.count} упоминаний</div>
                   </div>
-                  <div className="category-count">{cat.count} упоминаний</div>
-                  <div className="category-sentiment">
-                    <div className="sentiment-bar">
-                      <div
-                        className="sentiment-segment sentiment-segment--positive"
-                        style={{ width: `${(cat.sentiment.positive / cat.count) * 100}%` }}
-                        title={`Позитивные: ${cat.sentiment.positive}`}
-                      />
-                      <div
-                        className="sentiment-segment sentiment-segment--neutral"
-                        style={{ width: `${(cat.sentiment.neutral / cat.count) * 100}%` }}
-                        title={`Нейтральные: ${cat.sentiment.neutral}`}
-                      />
-                      <div
-                        className="sentiment-segment sentiment-segment--negative"
-                        style={{ width: `${(cat.sentiment.negative / cat.count) * 100}%` }}
-                        title={`Негативные: ${cat.sentiment.negative}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

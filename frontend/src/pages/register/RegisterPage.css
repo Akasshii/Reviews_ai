@@ -1,0 +1,7 @@
+/* RegisterPage reuses LoginPage styles (login-page, login-container, login-card, etc.) */
+/* Import LoginPage.css in the component to ensure styles are available */
+@import '../login/LoginPage.css';
+
+.login-subtitle-text {
+  color: var(--color-text-secondary);
+}

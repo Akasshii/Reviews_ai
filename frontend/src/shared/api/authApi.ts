@@ -50,6 +50,15 @@ export const authApi = {
     return userStr ? JSON.parse(userStr) : null;
   },
 
+  updateCurrentUser: (updates: Partial<{ name: string; company: string }>) => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      const updated = { ...user, ...updates };
+      localStorage.setItem('user', JSON.stringify(updated));
+    }
+  },
+
   isAuthenticated: (): boolean => {
     return !!localStorage.getItem('token');
   },

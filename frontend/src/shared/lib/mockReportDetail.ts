@@ -146,6 +146,11 @@ export const mockReportDetail: Report = {
   platform: 'all',
   status: 'ready',
   createdAt: new Date('2024-12-01'),
+  totalReviews: 156,
+  averageRating: 4.2,
+  positiveReviews: 98,
+  neutralReviews: 42,
+  negativeReviews: 16,
   stats: {
     totalReviews: 156,
     averageRating: 4.2,

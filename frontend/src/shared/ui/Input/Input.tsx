@@ -1,15 +1,17 @@
-import { InputHTMLAttributes, ReactNode, forwardRef } from 'react';
+import { forwardRef } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 import './Input.css';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   icon?: ReactNode;
+  suffix?: ReactNode;
   fullWidth?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon, fullWidth = false, className = '', ...props }, ref) => {
+  ({ label, error, icon, suffix, fullWidth = false, className = '', ...props }, ref) => {
     const wrapperClasses = [
       'input-wrapper',
       fullWidth && 'input-wrapper--full-width',
@@ -21,6 +23,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       'input',
       error && 'input--error',
       icon && 'input--with-icon',
+      suffix && 'input--with-suffix',
       className,
     ]
       .filter(Boolean)
@@ -32,6 +35,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <div className="input-container">
           {icon && <span className="input-icon">{icon}</span>}
           <input ref={ref} className={inputClasses} {...props} />
+          {suffix && <span className="input-suffix">{suffix}</span>}
         </div>
         {error && <span className="input-error">{error}</span>}
       </div>

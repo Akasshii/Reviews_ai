@@ -3,8 +3,10 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reviews-ai/internal/domain/entity"
 	"reviews-ai/internal/domain/repository"
+	"reviews-ai/pkg/utils"
 
 	"github.com/google/uuid"
 )
@@ -47,4 +49,33 @@ func (uc *UserUseCase) UpdateProfile(ctx context.Context, userID uuid.UUID, dto 
 	}
 
 	return updatedUser, nil
+}
+
+func (uc *UserUseCase) ChangePassword(ctx context.Context, userID uuid.UUID, dto *entity.ChangePasswordDTO) error {
+	// 1. Найти пользователя
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("пользователь не найден: %w", err)
+	}
+	if user == nil {
+		return errors.New("пользователь не найден")
+	}
+
+	// 2. Проверить текущий пароль
+	if !utils.CheckPassword(dto.CurrentPassword, user.Password) {
+		return fmt.Errorf("неверный текущий пароль")
+	}
+
+	// 3. Хешировать новый пароль
+	hashedPassword, err := utils.HashPassword(dto.NewPassword)
+	if err != nil {
+		return fmt.Errorf("ошибка хеширования пароля: %w", err)
+	}
+
+	// 4. Обновить в БД
+	if err := uc.userRepo.UpdatePassword(ctx, userID, hashedPassword); err != nil {
+		return fmt.Errorf("ошибка обновления пароля: %w", err)
+	}
+
+	return nil
 }

@@ -18,9 +18,9 @@ class ApiClient {
   private async request<T>(endpoint: string, config: RequestConfig = {}): Promise<T> {
     const { requiresAuth = false, ...fetchConfig } = config;
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...config.headers,
+      ...(config.headers as Record<string, string>),
     };
 
     if (requiresAuth) {
