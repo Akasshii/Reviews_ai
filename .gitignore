@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 
 # Go
 backend-go/bin/
