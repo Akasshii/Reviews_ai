@@ -681,10 +681,25 @@ func DetermineSentiment(rating int, text string) string {
 		}
 	}
 
-	if rating >= 4 && positiveCount > negativeCount {
+	// High rating (4-5): positive by default, negative only if text is clearly negative
+	if rating >= 4 {
+		if negativeCount > positiveCount {
+			return string(entity.SentimentNegative)
+		}
 		return string(entity.SentimentPositive)
-	} else if rating <= 2 || negativeCount > positiveCount {
+	}
+
+	// Low rating (1-2): negative by default
+	if rating <= 2 {
 		return string(entity.SentimentNegative)
+	}
+
+	// Medium rating (3): determined by text, default neutral
+	if negativeCount > positiveCount {
+		return string(entity.SentimentNegative)
+	}
+	if positiveCount > negativeCount {
+		return string(entity.SentimentPositive)
 	}
 	return string(entity.SentimentNeutral)
 }

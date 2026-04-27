@@ -95,10 +95,24 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		return nil, errors.New("no reviews found in the specified period")
 	}
 
-	// 4. Calculate statistics
+	// 4. AI sentiment classification (batch, replaces keyword-based labels)
+	log.Printf("[ReportUseCase] Classifying sentiments for %d reviews via AI", len(reviews))
+	aiSentiments, sentErr := uc.aiClient.ClassifyReviewSentiments(reviews)
+	if sentErr != nil {
+		log.Printf("[ReportUseCase] AI sentiment classification failed: %v — keeping keyword-based sentiment", sentErr)
+	} else {
+		for i := range reviews {
+			if i < len(aiSentiments) && aiSentiments[i] != "" {
+				reviews[i].Sentiment = aiSentiments[i]
+			}
+		}
+		log.Printf("[ReportUseCase] AI sentiment classification applied to %d reviews", len(reviews))
+	}
+
+	// 5. Calculate statistics
 	stats := uc.calculateStats(reviews)
 
-	// 5. Analyze with AI
+	// 7. Analyze with AI (summary, insights, recommendations)
 	log.Printf("[ReportUseCase] Sending %d reviews to AI analysis", len(reviews))
 	aiAnalysis, err := uc.aiClient.AnalyzeReviews(reviews)
 	if err != nil {
@@ -110,7 +124,7 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		}
 	}
 
-	// 6. Create report
+	// 8. Create report
 	report := &entity.Report{
 		ID:                 reportID,
 		UserID:             userID,
@@ -135,12 +149,12 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		return nil, fmt.Errorf("failed to create report: %w", err)
 	}
 
-	// 7. Save reviews
+	// 9. Save reviews
 	if err := uc.reviewRepo.CreateBatch(ctx, reviews); err != nil {
 		return nil, fmt.Errorf("failed to save reviews: %w", err)
 	}
 
-	// 8. Calculate and save category statistics
+	// 10. Calculate and save category statistics
 	categoryStats := uc.calculateCategoryStats(reportID, reviews)
 	if len(categoryStats) > 0 {
 		if err := uc.reportRepo.CreateCategoryStats(ctx, categoryStats); err != nil {
@@ -148,7 +162,7 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		}
 	}
 
-	// 9. Load full report with relations
+	// 11. Load full report with relations
 	fullReport, err := uc.reportRepo.FindByID(ctx, reportID)
 	if err != nil {
 		return nil, err

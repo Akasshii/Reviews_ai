@@ -18,7 +18,6 @@ interface YandexMapProps {
 export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
-  const clickMarkerRef = useRef<any>(null);
   const callbackRef = useRef(onOrganizationSelect);
   callbackRef.current = onOrganizationSelect;
 
@@ -41,8 +40,6 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
         });
 
         mapInstanceRef.current = map;
-
-        // Suppress ALL native Yandex Maps UI
         map.options.set('suppressMapOpenBlock', true);
         map.options.set('openBalloonOnClick', false);
 
@@ -57,9 +54,9 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
         });
         map.controls.add(searchControl);
 
-        // --- Helper: extract org data from a search result ---
+        // Extract organisation data from a ymaps search result
         const extractOrgData = (
-          result: any
+          result: any,
         ): SelectedOrganization & { isOrg: boolean } => {
           const properties = result.properties.getAll();
           const coords = result.geometry.getCoordinates();
@@ -95,20 +92,16 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
           };
         };
 
-        // --- Aggressively close any native balloon ---
+        // Suppress native Yandex balloons
         const closeBalloon = () => {
-          try { map.balloon.close(); } catch {}
+          try { map.balloon.close(); } catch { /* noop */ }
         };
-
         map.events.add('balloonopen', () => {
           setTimeout(closeBalloon, 0);
           setTimeout(closeBalloon, 100);
         });
 
-        // --- Flag: skip map click when a search result was just selected ---
-        let resultJustSelected = false;
-
-        // --- When search results load → show in results list ---
+        // When the search control loads results → populate the panel
         searchControl.events.add('load', () => {
           if (cancelled) return;
           try {
@@ -117,37 +110,28 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
               setSearchResults([]);
               return;
             }
-
             const promises: Promise<any>[] = [];
             for (let i = 0; i < Math.min(count, 10); i++) {
               promises.push(searchControl.getResult(i));
             }
-
             Promise.all(promises)
               .then((results) => {
                 if (cancelled) return;
-                const allResults = results.map(extractOrgData);
-                const orgs = allResults.filter((r) => r.isOrg);
-                setSearchResults(orgs.length > 0 ? orgs : allResults);
+                const all = results.map(extractOrgData);
+                const orgs = all.filter((r) => r.isOrg);
+                setSearchResults(orgs.length > 0 ? orgs : all);
               })
-              .catch(() => {
-                if (!cancelled) setSearchResults([]);
-              });
+              .catch(() => { if (!cancelled) setSearchResults([]); });
           } catch {
             setSearchResults([]);
           }
         });
 
-        // --- Handle result click on map (resultselect + resultshow) ---
+        // When user clicks a search result on the map or in the list
         const handleResultClick = () => {
-          resultJustSelected = true;
-          setTimeout(() => { resultJustSelected = false; }, 500);
-
-          // Close native balloon immediately
           closeBalloon();
           setTimeout(closeBalloon, 50);
           setTimeout(closeBalloon, 200);
-
           const index = searchControl.getSelectedIndex();
           searchControl.getResult(index).then((result: any) => {
             if (!cancelled) {
@@ -161,123 +145,17 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
         searchControl.events.add('resultselect', handleResultClick);
         searchControl.events.add('resultshow', handleResultClick);
 
-        // --- Click on map → reverse geocode → search for organizations ---
-        const doSearch = (coords: number[]) => {
-          closeBalloon();
-
-          // Remove previous click marker
-          if (clickMarkerRef.current) {
-            map.geoObjects.remove(clickMarkerRef.current);
-            clickMarkerRef.current = null;
-          }
-
-          // Place marker at clicked point
-          const marker = new ymaps.Placemark(
-            coords,
-            {},
-            { preset: 'islands#redCircleDotIcon' }
-          );
-          map.geoObjects.add(marker);
-          clickMarkerRef.current = marker;
-
-          // Reverse geocode → search for organizations at that address
-          ymaps.geocode(coords, { results: 1 }).then((res: any) => {
-            const firstObj = res.geoObjects.get(0);
-            if (!firstObj) return;
-
-            const address =
-              (typeof firstObj.getAddressLine === 'function'
-                ? firstObj.getAddressLine()
-                : null) ||
-              firstObj.properties.get('text') ||
-              '';
-
-            if (address) {
-              searchControl.search(address);
-            }
-          });
-        };
-
-        // ymaps click event
-        map.events.add('click', (e: any) => {
-          if (resultJustSelected) return;
-          doSearch(e.get('coords'));
-        });
-
-        // DOM-level click handler for native POI markers that ymaps misses
-        let lastYmapsClickTime = 0;
-        map.events.add('click', () => {
-          lastYmapsClickTime = Date.now();
-        });
-
-        let mouseDownPos: [number, number] | null = null;
-        const mapEl = mapContainerRef.current;
-
-        const onMouseDown = (e: MouseEvent) => {
-          mouseDownPos = [e.clientX, e.clientY];
-        };
-
-        const onDOMClick = (e: MouseEvent) => {
-          if (resultJustSelected) return;
-          if (Date.now() - lastYmapsClickTime < 300) return;
-
-          if (mouseDownPos) {
-            const dx = e.clientX - mouseDownPos[0];
-            const dy = e.clientY - mouseDownPos[1];
-            if (Math.sqrt(dx * dx + dy * dy) > 5) return;
-          }
-
-          const target = e.target as HTMLElement;
-          if (
-            target.closest('[class*="ymaps"][class*="control"]') ||
-            target.closest('[class*="ymaps"][class*="search"]') ||
-            target.closest('[class*="ymaps"][class*="suggest"]') ||
-            target.closest('[class*="ymaps"][class*="balloon"]') ||
-            target.closest('[class*="ymaps"][class*="zoom"]') ||
-            target.closest('.yandex-map-results')
-          ) {
-            return;
-          }
-
-          try {
-            const globalPixels = map.converter.pageToGlobal([e.pageX, e.pageY]);
-            const geoCoords = ymaps.projection.wgs84Mercator.fromGlobalPixels(
-              globalPixels,
-              map.getZoom()
-            );
-            doSearch(geoCoords);
-          } catch {
-            try {
-              const bounds = map.getBounds();
-              const rect = mapEl.getBoundingClientRect();
-              const xRatio = (e.clientX - rect.left) / rect.width;
-              const yRatio = (e.clientY - rect.top) / rect.height;
-              const lat = bounds[1][0] - yRatio * (bounds[1][0] - bounds[0][0]);
-              const lng = bounds[0][1] + xRatio * (bounds[1][1] - bounds[0][1]);
-              doSearch([lat, lng]);
-            } catch { /* ignore */ }
-          }
-        };
-
-        mapEl.addEventListener('mousedown', onMouseDown);
-        mapEl.addEventListener('click', onDOMClick);
-
-        // Geolocation
+        // Centre on the user's geolocation
         ymaps.geolocation
           .get({ provider: 'browser' })
           .then((result: any) => {
-            const userCoords = result.geoObjects.get(0).geometry.getCoordinates();
-            map.setCenter(userCoords, 12);
+            if (cancelled) return;
+            const coords = result.geoObjects.get(0)?.geometry.getCoordinates();
+            if (coords) map.setCenter(coords, 12);
           })
           .catch(() => {});
 
         setMapLoading(false);
-
-        const cleanup = () => {
-          mapEl.removeEventListener('mousedown', onMouseDown);
-          mapEl.removeEventListener('click', onDOMClick);
-        };
-        (map as any).__domCleanup = cleanup;
       })
       .catch((err) => {
         if (!cancelled) {
@@ -289,14 +167,13 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
     return () => {
       cancelled = true;
       if (mapInstanceRef.current) {
-        (mapInstanceRef.current as any).__domCleanup?.();
         mapInstanceRef.current.destroy();
         mapInstanceRef.current = null;
       }
     };
   }, []);
 
-  // Auto-scroll to results list when it appears
+  // Scroll the results panel into view when it appears
   useEffect(() => {
     if (searchResults.length > 0 && resultsRef.current) {
       resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -305,6 +182,10 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
 
   const handleSelectOrg = (org: SelectedOrganization) => {
     callbackRef.current(org);
+  };
+
+  const handleCloseSheet = () => {
+    setSearchResults([]);
   };
 
   return (
@@ -331,35 +212,43 @@ export const YandexMap = ({ onOrganizationSelect, height }: YandexMapProps) => {
 
       {searchResults.length > 0 && (
         <div className="yandex-map-results" ref={resultsRef}>
-          <p className="yandex-map-results-title">
-            Организации ({searchResults.length})
-          </p>
-          {searchResults.map((org, i) => (
-            <div
-              key={`${org.latitude}-${org.longitude}-${i}`}
-              className="yandex-map-result-item"
-              onClick={() => handleSelectOrg(org)}
-            >
-              <div className="yandex-map-result-info">
-                <span className="yandex-map-result-name">{org.name}</span>
-                {org.address && (
-                  <span className="yandex-map-result-address">
-                    {org.address}
-                  </span>
-                )}
-              </div>
-              <button
-                className="yandex-map-result-add"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSelectOrg(org);
-                }}
-                title="Выбрать организацию"
-              >
-                +
-              </button>
+          <div className="yandex-map-results-header">
+            <div className="yandex-map-results-header-info">
+              <span className="yandex-map-results-title">
+                Результаты поиска ({searchResults.length})
+              </span>
             </div>
-          ))}
+            <button
+              className="yandex-map-results-close"
+              onClick={handleCloseSheet}
+              title="Закрыть"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="yandex-map-results-list">
+            {searchResults.map((org, i) => (
+              <div
+                key={`${org.latitude}-${org.longitude}-${i}`}
+                className="yandex-map-result-item"
+                onClick={() => handleSelectOrg(org)}
+              >
+                <div className="yandex-map-result-info">
+                  <span className="yandex-map-result-name">{org.name}</span>
+                  {org.address && (
+                    <span className="yandex-map-result-address">{org.address}</span>
+                  )}
+                </div>
+                <button
+                  className="yandex-map-result-add"
+                  onClick={(e) => { e.stopPropagation(); handleSelectOrg(org); }}
+                  title="Добавить филиал"
+                >
+                  +
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

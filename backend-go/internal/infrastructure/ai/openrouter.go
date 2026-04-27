@@ -444,6 +444,112 @@ func (c *OpenRouterClient) createBasicAnalysis(reviews []entity.Review) *Analysi
 	}
 }
 
+// ClassifyReviewSentiments sends all reviews in one batch to the AI and returns
+// a sentiment label ("positive", "neutral", "negative") for each, in order.
+func (c *OpenRouterClient) ClassifyReviewSentiments(reviews []entity.Review) ([]string, error) {
+	if len(reviews) == 0 {
+		return nil, nil
+	}
+
+	prompt := c.buildSentimentPrompt(reviews)
+	raw, err := c.callAI(prompt)
+	if err != nil {
+		return nil, fmt.Errorf("AI sentiment call failed: %w", err)
+	}
+
+	sentiments, err := c.parseSentimentResponse(raw, len(reviews))
+	if err != nil {
+		log.Printf("[AI] Sentiment parse error: %v — retrying with simplified prompt", err)
+		simplePrompt := c.buildSimpleSentimentPrompt(reviews)
+		raw, err = c.callAI(simplePrompt)
+		if err != nil {
+			return nil, err
+		}
+		sentiments, err = c.parseSentimentResponse(raw, len(reviews))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return sentiments, nil
+}
+
+func (c *OpenRouterClient) buildSentimentPrompt(reviews []entity.Review) string {
+	var sb strings.Builder
+
+	n := len(reviews)
+	if n > 100 {
+		n = 100
+	}
+
+	sb.WriteString(fmt.Sprintf("Определи тональность %d отзывов клиентов.\n\n", n))
+	sb.WriteString("Правила классификации:\n")
+	sb.WriteString("- \"positive\" — клиент доволен, явно хвалит, оценка 4-5 без жалоб\n")
+	sb.WriteString("- \"negative\" — клиент недоволен, жалуется, критикует, оценка 1-2\n")
+	sb.WriteString("- \"neutral\"  — смешанный или безэмоциональный отзыв, оценка 3\n\n")
+	sb.WriteString("ОТЗЫВЫ (номер. [оценка/5] текст):\n")
+
+	for i, r := range reviews[:n] {
+		text := r.Text
+		if len(text) > 300 {
+			text = text[:300]
+		}
+		sb.WriteString(fmt.Sprintf("%d. [%d/5] %s\n", i+1, r.Rating, text))
+	}
+
+	sb.WriteString(fmt.Sprintf("\nВерни ТОЛЬКО JSON без markdown и без пояснений:\n"))
+	sb.WriteString(fmt.Sprintf(`{"sentiments":[%d значений, каждое "positive"/"neutral"/"negative"]}`, n))
+	sb.WriteString("\nПример для 3 отзывов: {\"sentiments\":[\"positive\",\"neutral\",\"negative\"]}")
+
+	return sb.String()
+}
+
+func (c *OpenRouterClient) buildSimpleSentimentPrompt(reviews []entity.Review) string {
+	var sb strings.Builder
+	n := len(reviews)
+	if n > 100 {
+		n = 100
+	}
+	sb.WriteString(fmt.Sprintf("Classify %d reviews. Return JSON only: {\"sentiments\":[...]}\n", n))
+	sb.WriteString("Values: \"positive\", \"neutral\", \"negative\"\n\n")
+	for i, r := range reviews[:n] {
+		text := r.Text
+		if len(text) > 150 {
+			text = text[:150]
+		}
+		sb.WriteString(fmt.Sprintf("%d.[%d/5]%s\n", i+1, r.Rating, text))
+	}
+	return sb.String()
+}
+
+func (c *OpenRouterClient) parseSentimentResponse(content string, count int) ([]string, error) {
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start == -1 || end == -1 || end <= start {
+		return nil, fmt.Errorf("no JSON object in sentiment response")
+	}
+
+	var parsed struct {
+		Sentiments []string `json:"sentiments"`
+	}
+	if err := json.Unmarshal([]byte(content[start:end+1]), &parsed); err != nil {
+		return nil, fmt.Errorf("JSON unmarshal error: %w", err)
+	}
+
+	if len(parsed.Sentiments) != count {
+		return nil, fmt.Errorf("expected %d sentiments, got %d", count, len(parsed.Sentiments))
+	}
+
+	valid := map[string]bool{"positive": true, "neutral": true, "negative": true}
+	for i, s := range parsed.Sentiments {
+		if !valid[s] {
+			return nil, fmt.Errorf("invalid sentiment at index %d: %q", i, s)
+		}
+	}
+
+	return parsed.Sentiments, nil
+}
+
 func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value

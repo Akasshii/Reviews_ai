@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/ui';
 import { StarIcon, CalendarIcon, DownloadIcon, BarChartIcon } from '../../shared/ui';
@@ -33,6 +33,9 @@ export const ReportDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'summary' | 'detailed'>('summary');
+  const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'neutral' | 'negative' | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<ReviewCategory | null>(null);
+  const reviewsSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (id) {
@@ -53,6 +56,29 @@ export const ReportDetailPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const scrollToReviews = () => {
+    setTimeout(() => {
+      reviewsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  const handleStatCardClick = (filter: 'all' | 'positive' | 'neutral' | 'negative') => {
+    setSentimentFilter(filter);
+    setCategoryFilter(null);
+    scrollToReviews();
+  };
+
+  const handleCategoryClick = (category: ReviewCategory) => {
+    setCategoryFilter(category);
+    setSentimentFilter(null);
+    scrollToReviews();
+  };
+
+  const clearFilters = () => {
+    setSentimentFilter(null);
+    setCategoryFilter(null);
   };
 
   if (loading) {
@@ -94,6 +120,18 @@ export const ReportDetailPage = () => {
     if (rating >= 3.0) return '#fb923c';
     return '#ef4444';
   };
+
+  const activeFilter = sentimentFilter || (categoryFilter ? `category:${categoryFilter}` : null);
+
+  const filteredReviews = (report?.reviews ?? []).filter((review) => {
+    if (sentimentFilter && sentimentFilter !== 'all') {
+      if (review.sentiment !== sentimentFilter) return false;
+    }
+    if (categoryFilter) {
+      if (!review.categories?.includes(categoryFilter)) return false;
+    }
+    return true;
+  });
 
   return (
     <div className="report-detail-page">
@@ -216,25 +254,45 @@ export const ReportDetailPage = () => {
       )}
 
       <div className="report-stats-grid">
-        <Card padding="md" hoverable>
+        <Card
+          padding="md"
+          hoverable
+          onClick={() => handleStatCardClick('all')}
+          className={`stat-card-clickable${sentimentFilter === 'all' ? ' stat-card-active' : ''}`}
+        >
           <div className="stat-item">
             <span className="stat-label">Всего отзывов</span>
             <span className="stat-value">{report.stats!.totalReviews}</span>
           </div>
         </Card>
-        <Card padding="md" hoverable>
+        <Card
+          padding="md"
+          hoverable
+          onClick={() => handleStatCardClick('positive')}
+          className={`stat-card-clickable${sentimentFilter === 'positive' ? ' stat-card-active stat-card-active--positive' : ''}`}
+        >
           <div className="stat-item stat-item--positive">
             <span className="stat-label">Позитивные</span>
             <span className="stat-value">{report.stats!.positiveReviews}</span>
           </div>
         </Card>
-        <Card padding="md" hoverable>
+        <Card
+          padding="md"
+          hoverable
+          onClick={() => handleStatCardClick('neutral')}
+          className={`stat-card-clickable${sentimentFilter === 'neutral' ? ' stat-card-active stat-card-active--neutral' : ''}`}
+        >
           <div className="stat-item stat-item--neutral">
             <span className="stat-label">Нейтральные</span>
             <span className="stat-value">{report.stats!.neutralReviews}</span>
           </div>
         </Card>
-        <Card padding="md" hoverable>
+        <Card
+          padding="md"
+          hoverable
+          onClick={() => handleStatCardClick('negative')}
+          className={`stat-card-clickable${sentimentFilter === 'negative' ? ' stat-card-active stat-card-active--negative' : ''}`}
+        >
           <div className="stat-item stat-item--negative">
             <span className="stat-label">Негативные</span>
             <span className="stat-value">{report.stats!.negativeReviews}</span>
@@ -254,15 +312,21 @@ export const ReportDetailPage = () => {
             <div className="categories-grid">
               {report.categoryStats.map((cat) => {
                 const ratingColor = getRatingColor(cat.averageRating);
+                const isActive = categoryFilter === cat.category;
                 return (
                   <div
                     key={cat.category}
-                    className="category-card"
+                    className={`category-card category-card-clickable${isActive ? ' category-card-active' : ''}`}
+                    onClick={() => handleCategoryClick(cat.category)}
+                    title="Нажмите, чтобы посмотреть отзывы"
                     style={{
-                      border: `2px solid ${ratingColor}`,
+                      border: `2px solid ${isActive ? ratingColor : ratingColor}`,
                       borderRadius: '12px',
                       padding: '16px',
-                      backgroundColor: `${ratingColor}0d`,
+                      backgroundColor: isActive ? `${ratingColor}20` : `${ratingColor}0d`,
+                      cursor: 'pointer',
+                      outline: isActive ? `2px solid ${ratingColor}` : 'none',
+                      outlineOffset: '2px',
                     }}
                   >
                     <div className="category-header">
@@ -365,20 +429,40 @@ export const ReportDetailPage = () => {
       )}
 
       {report.reviews && report.reviews.length > 0 && (
+        <div ref={reviewsSectionRef}>
         <Card padding="lg">
           <CardHeader>
             <div className="card-header-with-action">
-              <CardTitle>
-                Отзывы ({viewMode === 'summary' ? Math.min(5, report.reviews.length) : report.reviews.length})
-              </CardTitle>
-              {viewMode === 'summary' && report.reviews.length > 5 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <CardTitle>
+                  Отзывы ({activeFilter ? filteredReviews.length : (viewMode === 'summary' ? Math.min(5, report.reviews.length) : report.reviews.length)})
+                </CardTitle>
+                {activeFilter && (
+                  <div className="reviews-filter-badge">
+                    <span>
+                      {sentimentFilter === 'all' && 'Все отзывы'}
+                      {sentimentFilter === 'positive' && 'Позитивные отзывы'}
+                      {sentimentFilter === 'neutral' && 'Нейтральные отзывы'}
+                      {sentimentFilter === 'negative' && 'Негативные отзывы'}
+                      {categoryFilter && `Категория: ${categoryLabels[categoryFilter]}`}
+                    </span>
+                    <button className="reviews-filter-clear" onClick={clearFilters} title="Сбросить фильтр">✕</button>
+                  </div>
+                )}
+              </div>
+              {!activeFilter && viewMode === 'summary' && report.reviews.length > 5 && (
                 <span className="hint-text">Показаны первые 5 из {report.reviews.length}</span>
               )}
             </div>
           </CardHeader>
           <CardContent>
+            {activeFilter && filteredReviews.length === 0 ? (
+              <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: '24px 0' }}>
+                Отзывов по выбранному фильтру не найдено
+              </p>
+            ) : null}
             <div className="reviews-list-detail">
-              {(viewMode === 'summary' ? report.reviews.slice(0, 5) : report.reviews).map((review) => (
+              {(activeFilter ? filteredReviews : (viewMode === 'summary' ? report.reviews.slice(0, 5) : report.reviews)).map((review) => (
                 <div key={review.id} className="review-card-detail">
                   <div className="review-card-header">
                     <div className="review-author-section">
@@ -432,6 +516,7 @@ export const ReportDetailPage = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
       )}
     </div>
   );
