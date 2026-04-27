@@ -29,7 +29,6 @@ func (uc *LocationUseCase) CreateLocation(ctx context.Context, userID uuid.UUID,
 		Longitude: dto.Longitude,
 		YandexURL: dto.YandexURL,
 		TwoGisURL: dto.TwoGisURL,
-		GoogleURL: dto.GoogleURL,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -88,9 +87,6 @@ func (uc *LocationUseCase) UpdateLocation(ctx context.Context, locationID uuid.U
 	}
 	if dto.TwoGisURL != nil {
 		location.TwoGisURL = dto.TwoGisURL
-	}
-	if dto.GoogleURL != nil {
-		location.GoogleURL = dto.GoogleURL
 	}
 
 	if err := uc.locationRepo.Update(ctx, location); err != nil {

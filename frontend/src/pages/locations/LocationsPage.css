@@ -83,11 +83,6 @@
   color: #1a6b42;
 }
 
-.platform-badge--google {
-  background-color: rgba(66, 133, 244, 0.12);
-  color: #2563eb;
-}
-
 .platform-badge--none {
   background-color: rgba(156, 163, 175, 0.15);
   color: #6b7280;
@@ -257,12 +252,6 @@
   background-color: rgba(46, 139, 87, 0.08);
   color: #1a6b42;
   border: 1px dashed rgba(46, 139, 87, 0.3);
-}
-
-.platform-badge--google-search {
-  background-color: rgba(66, 133, 244, 0.08);
-  color: #2563eb;
-  border: 1px dashed rgba(66, 133, 244, 0.3);
 }
 
 @media (max-width: 768px) {

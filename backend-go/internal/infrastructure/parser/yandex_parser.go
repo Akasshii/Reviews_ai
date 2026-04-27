@@ -251,7 +251,7 @@ func (p *YandexParser) waitForReviews(ctx context.Context) error {
 	})()
 	`
 
-	for attempt := 0; attempt < 30; attempt++ {
+	for attempt := 0; attempt < 20; attempt++ {
 		var matched string
 		if err := chromedp.Run(ctx, chromedp.Evaluate(checkJS, &matched)); err != nil {
 			return fmt.Errorf("waiting for reviews: %w", err)
@@ -264,7 +264,7 @@ func (p *YandexParser) waitForReviews(ctx context.Context) error {
 			return err
 		}
 	}
-	return fmt.Errorf("reviews not found after 30 attempts")
+	return fmt.Errorf("reviews not found after 20 attempts")
 }
 
 // scrollToLoadReviews scrolls the reviews container to trigger infinite scroll loading.
@@ -364,7 +364,7 @@ func (p *YandexParser) scrollToLoadReviews(ctx context.Context, maxReviews int) 
 		prevCount = count
 
 		// Wait between scrolls
-		if err := chromedp.Run(ctx, chromedp.Sleep(2500*time.Millisecond)); err != nil {
+		if err := chromedp.Run(ctx, chromedp.Sleep(1500*time.Millisecond)); err != nil {
 			return err
 		}
 	}

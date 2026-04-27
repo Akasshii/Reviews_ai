@@ -192,7 +192,7 @@ export const DashboardPage = () => {
                         <div className="review-author-info">
                           <span className="review-author">{review.author}</span>
                           <span className={`review-platform-badge review-platform-badge--${review.platform}`}>
-                            {review.platform === 'yandex' ? 'Яндекс' : review.platform === 'google' ? 'Google' : '2ГИС'}
+                            {review.platform === 'yandex' ? 'Яндекс' : '2ГИС'}
                           </span>
                         </div>
                         <div className="review-rating">

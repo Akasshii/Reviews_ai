@@ -15,7 +15,6 @@ type Location struct {
 	Longitude *float64  `json:"longitude,omitempty"`
 	YandexURL *string   `json:"yandexUrl,omitempty"`
 	TwoGisURL *string   `json:"twogisUrl,omitempty"`
-	GoogleURL *string   `json:"googleUrl,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -27,7 +26,6 @@ type CreateLocationDTO struct {
 	Longitude *float64 `json:"longitude"`
 	YandexURL *string  `json:"yandexUrl"`
 	TwoGisURL *string  `json:"twogisUrl"`
-	GoogleURL *string  `json:"googleUrl"`
 }
 
 type UpdateLocationDTO struct {
@@ -37,5 +35,4 @@ type UpdateLocationDTO struct {
 	Longitude *float64 `json:"longitude"`
 	YandexURL *string  `json:"yandexUrl"`
 	TwoGisURL *string  `json:"twogisUrl"`
-	GoogleURL *string  `json:"googleUrl"`
 }

@@ -17,7 +17,7 @@ type BrowserManager struct {
 }
 
 func NewBrowserManager() *BrowserManager {
-	pageTimeout := 30 * time.Second
+	pageTimeout := 90 * time.Second
 	if v := os.Getenv("PARSER_TIMEOUT_SEC"); v != "" {
 		if sec, err := strconv.Atoi(v); err == nil {
 			pageTimeout = time.Duration(sec) * time.Second

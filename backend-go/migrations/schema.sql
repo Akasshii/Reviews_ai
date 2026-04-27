@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS locations (
   longitude DECIMAL(10, 7),
   yandex_url TEXT,
   twogis_url TEXT,
-  google_url TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -20,8 +20,8 @@ func NewLocationRepository(db *sql.DB) repository.LocationRepository {
 
 func (r *LocationRepositoryImpl) Create(ctx context.Context, location *entity.Location) error {
 	query := `
-		INSERT INTO locations (id, user_id, name, address, latitude, longitude, yandex_url, twogis_url, google_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO locations (id, user_id, name, address, latitude, longitude, yandex_url, twogis_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING created_at, updated_at`
 
 	return r.db.QueryRowContext(ctx, query,
@@ -33,20 +33,19 @@ func (r *LocationRepositoryImpl) Create(ctx context.Context, location *entity.Lo
 		location.Longitude,
 		location.YandexURL,
 		location.TwoGisURL,
-		location.GoogleURL,
 	).Scan(&location.CreatedAt, &location.UpdatedAt)
 }
 
 func (r *LocationRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*entity.Location, error) {
 	query := `
-		SELECT id, user_id, name, address, latitude, longitude, yandex_url, twogis_url, google_url, created_at, updated_at
+		SELECT id, user_id, name, address, latitude, longitude, yandex_url, twogis_url, created_at, updated_at
 		FROM locations WHERE id = $1`
 
 	loc := &entity.Location{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&loc.ID, &loc.UserID, &loc.Name, &loc.Address,
 		&loc.Latitude, &loc.Longitude,
-		&loc.YandexURL, &loc.TwoGisURL, &loc.GoogleURL,
+		&loc.YandexURL, &loc.TwoGisURL,
 		&loc.CreatedAt, &loc.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -60,7 +59,7 @@ func (r *LocationRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*e
 
 func (r *LocationRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Location, error) {
 	query := `
-		SELECT id, user_id, name, address, latitude, longitude, yandex_url, twogis_url, google_url, created_at, updated_at
+		SELECT id, user_id, name, address, latitude, longitude, yandex_url, twogis_url, created_at, updated_at
 		FROM locations WHERE user_id = $1 ORDER BY created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
@@ -75,7 +74,7 @@ func (r *LocationRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.U
 		if err := rows.Scan(
 			&loc.ID, &loc.UserID, &loc.Name, &loc.Address,
 			&loc.Latitude, &loc.Longitude,
-			&loc.YandexURL, &loc.TwoGisURL, &loc.GoogleURL,
+			&loc.YandexURL, &loc.TwoGisURL,
 			&loc.CreatedAt, &loc.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan location: %w", err)
@@ -93,9 +92,8 @@ func (r *LocationRepositoryImpl) Update(ctx context.Context, location *entity.Lo
 			latitude = COALESCE($3, latitude),
 			longitude = COALESCE($4, longitude),
 			yandex_url = COALESCE($5, yandex_url),
-			twogis_url = COALESCE($6, twogis_url),
-			google_url = COALESCE($7, google_url)
-		WHERE id = $8
+			twogis_url = COALESCE($6, twogis_url)
+		WHERE id = $7
 		RETURNING updated_at`
 
 	return r.db.QueryRowContext(ctx, query,
@@ -105,7 +103,6 @@ func (r *LocationRepositoryImpl) Update(ctx context.Context, location *entity.Lo
 		location.Longitude,
 		location.YandexURL,
 		location.TwoGisURL,
-		location.GoogleURL,
 		location.ID,
 	).Scan(&location.UpdatedAt)
 }

@@ -16,7 +16,7 @@ export const ReportsPage = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis' | 'google'>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'yandex' | '2gis'>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -145,13 +145,6 @@ export const ReportsPage = () => {
             >
               2ГИС
             </Button>
-            <Button
-              variant={selectedPlatform === 'google' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedPlatform('google')}
-            >
-              Google Maps
-            </Button>
           </div>
         </div>
       </div>
@@ -210,7 +203,6 @@ export const ReportsPage = () => {
                             {report.platform === 'all' ? 'Все платформы'
                             : report.platform === 'yandex' ? 'Яндекс.Карты'
                             : report.platform === '2gis' ? '2ГИС'
-                            : report.platform === 'google' ? 'Google Maps'
                             : report.platform}
                           </span>
                         </div>
@@ -284,7 +276,7 @@ export const ReportsPage = () => {
 const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) => {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [selectedPlatform, setSelectedPlatform] = useState<'yandex' | '2gis' | 'google' | 'all'>('yandex');
+  const [selectedPlatform, setSelectedPlatform] = useState<'yandex' | '2gis' | 'all'>('yandex');
   const [locations, setLocations] = useState<Location[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
@@ -307,17 +299,16 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
   const derivedUrl =
     selectedPlatform === 'yandex' ? selectedLocation?.yandexUrl :
     selectedPlatform === '2gis' ? selectedLocation?.twogisUrl :
-    selectedPlatform === 'google' ? selectedLocation?.googleUrl :
     undefined; // 'all' — обрабатывается отдельно в handleGenerate
 
   const locationMissingUrl = selectedLocation && (
     selectedPlatform === 'all'
-      ? !selectedLocation.yandexUrl && !selectedLocation.twogisUrl && !selectedLocation.googleUrl
+      ? !selectedLocation.yandexUrl && !selectedLocation.twogisUrl
       : !derivedUrl
   );
 
   const platformLabel = (p: string) =>
-    p === 'yandex' ? 'Яндекс.Карты' : p === '2gis' ? '2ГИС' : p === 'google' ? 'Google Maps' : p;
+    p === 'yandex' ? 'Яндекс.Карты' : p === '2gis' ? '2ГИС' : p;
 
   const handleGenerate = async () => {
     if (!title.trim()) { setError('Укажите название отчёта'); return; }
@@ -332,7 +323,6 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
       const urlsToCreate = [
         { url: selectedLocation?.yandexUrl, label: 'Яндекс.Карты' },
         { url: selectedLocation?.twogisUrl, label: '2ГИС' },
-        { url: selectedLocation?.googleUrl, label: 'Google' },
       ].filter((p): p is { url: string; label: string } => !!p.url);
 
       if (urlsToCreate.length === 0) {
@@ -441,13 +431,6 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
                       2ГИС
                     </Button>
                     <Button
-                      variant={selectedPlatform === 'google' ? 'primary' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectedPlatform('google')}
-                    >
-                      Google Maps
-                    </Button>
-                    <Button
                       variant={selectedPlatform === 'all' ? 'primary' : 'outline'}
                       size="sm"
                       onClick={() => setSelectedPlatform('all')}
@@ -487,8 +470,7 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
                           const hasUrl =
                             selectedPlatform === 'yandex' ? !!loc.yandexUrl :
                             selectedPlatform === '2gis' ? !!loc.twogisUrl :
-                            selectedPlatform === 'google' ? !!loc.googleUrl :
-                            !!(loc.yandexUrl || loc.twogisUrl || loc.googleUrl);
+                            !!(loc.yandexUrl || loc.twogisUrl);
                           return (
                             <option key={loc.id} value={loc.id}>
                               {loc.name}{!hasUrl ? ' (нет ссылки)' : ''}

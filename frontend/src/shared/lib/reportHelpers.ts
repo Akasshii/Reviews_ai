@@ -63,7 +63,7 @@ export const normalizeReport = (report: any): Report => {
     normalized.reviews = report.reviews.map((review: any) => ({
       ...review,
       date: new Date(review.date),
-      platform: review.source === 'yandex' ? 'yandex' : review.source === 'google' ? 'google' : '2gis',
+      platform: review.source === 'yandex' ? 'yandex' : '2gis',
     }));
   }
 

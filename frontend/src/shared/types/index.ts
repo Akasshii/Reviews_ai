@@ -109,7 +109,6 @@ export interface Location {
   longitude?: number;
   yandexUrl?: string;
   twogisUrl?: string;
-  googleUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,7 +120,6 @@ export interface CreateLocationDTO {
   longitude?: number;
   yandexUrl?: string;
   twogisUrl?: string;
-  googleUrl?: string;
 }
 
 export interface UpdateLocationDTO {
@@ -131,5 +129,4 @@ export interface UpdateLocationDTO {
   longitude?: number;
   yandexUrl?: string;
   twogisUrl?: string;
-  googleUrl?: string;
 }

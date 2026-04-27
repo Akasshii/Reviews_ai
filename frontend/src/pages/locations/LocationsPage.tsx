@@ -207,20 +207,6 @@ export const LocationsPage = () => {
                         Найти на 2ГИС →
                       </a>
                     )}
-                    {loc.googleUrl ? (
-                      <a href={loc.googleUrl} target="_blank" rel="noopener noreferrer" className="location-badge platform-badge--google">
-                        Google ↗
-                      </a>
-                    ) : (
-                      <a
-                        href={`https://www.google.com/maps/search/${encodeURIComponent(loc.name + (loc.address ? ', ' + loc.address : ''))}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="location-badge platform-badge--google-search"
-                      >
-                        Найти на Google →
-                      </a>
-                    )}
                   </div>
                 </div>
                 <div className="location-actions">
@@ -377,7 +363,6 @@ const AddLocationModal = ({
   const [resolvedAddress, setResolvedAddress] = useState('');
   const [yandexUrl, setYandexUrl] = useState('');
   const [twogisUrl, setTwogisUrl] = useState('');
-  const [googleUrl, setGoogleUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -437,7 +422,6 @@ const AddLocationModal = ({
         address: resolvedAddress || undefined,
         yandexUrl: yandexUrl.trim() || undefined,
         twogisUrl: twogisUrl.trim() || undefined,
-        googleUrl: googleUrl.trim() || undefined,
       });
       onSuccess();
     } catch (err: any) {
@@ -540,18 +524,6 @@ const AddLocationModal = ({
                 value={twogisUrl}
                 onChange={(e) => setTwogisUrl(e.target.value)}
                 placeholder="https://2gis.ru/.../firm/..."
-                className="date-input"
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">URL на Google Maps</label>
-              <input
-                type="text"
-                value={googleUrl}
-                onChange={(e) => setGoogleUrl(e.target.value)}
-                placeholder="https://maps.google.com/..."
                 className="date-input"
                 style={{ width: '100%' }}
               />
