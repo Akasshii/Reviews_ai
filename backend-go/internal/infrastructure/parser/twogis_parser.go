@@ -177,7 +177,7 @@ func (p *TwoGisParser) waitForReviews(ctx context.Context) error {
 	})()
 	`
 
-	for attempt := 0; attempt < 30; attempt++ {
+	for attempt := 0; attempt < 45; attempt++ {
 		var matched string
 		if err := chromedp.Run(ctx, chromedp.Evaluate(checkJS, &matched)); err != nil {
 			return fmt.Errorf("waiting for reviews: %w", err)
@@ -190,10 +190,10 @@ func (p *TwoGisParser) waitForReviews(ctx context.Context) error {
 			return err
 		}
 	}
-	return fmt.Errorf("reviews not found after 30 attempts")
+	return fmt.Errorf("reviews not found after 45 attempts")
 }
 
-// loadMoreReviews clicks the "Загрузить ещё" button repeatedly to load all reviews.
+// loadMoreReviews clicks the "load more reviews" button repeatedly to load all reviews.
 func (p *TwoGisParser) loadMoreReviews(ctx context.Context, maxReviews int) error {
 	maxClicks := maxReviews / 10
 	if maxClicks < 3 {
@@ -208,38 +208,35 @@ func (p *TwoGisParser) loadMoreReviews(ctx context.Context, maxReviews int) erro
 		const maxClicks = %d;
 		const maxReviews = %d;
 		let clicks = 0;
+		let prevCount = 0;
+		let noChangeCount = 0;
 
 		const countReviews = () => {
-			// Count review cards by looking for elements with star ratings
-			// Each review card typically has a group of 5 star SVGs
+			// Method 1: data-review-id
+			const byAttr = document.querySelectorAll('[data-review-id]');
+			if (byAttr.length > 0) return byAttr.length;
+
+			// Method 2: structural — divs containing star groups
 			const allDivs = document.querySelectorAll('div');
 			let count = 0;
 			for (const div of allDivs) {
 				const stars = div.querySelectorAll(':scope > svg, :scope > span > svg');
-				if (stars.length === 5) {
-					count++;
-				}
+				if (stars.length === 5) count++;
 			}
 			if (count > 0) return count;
 
-			// Fallback: count by text blocks that look like reviews
-			const textBlocks = document.querySelectorAll('[style*="pre-line"], [style*="line-clamp"]');
-			return textBlocks.length;
+			// Method 3: text blocks that look like reviews
+			return document.querySelectorAll('[style*="pre-line"], [style*="line-clamp"]').length;
 		};
 
 		const findLoadMoreBtn = () => {
-			// Find button with text "Загрузить ещё"
-			const buttons = document.querySelectorAll('button');
-			for (const btn of buttons) {
-				if (btn.textContent.trim().includes('Загрузить ещё')) {
-					return btn;
-				}
-			}
-			// Also try div/span acting as button
-			const clickables = document.querySelectorAll('[role="button"], a, [class*="button"]');
+			// All button-like elements — check multiple text variants
+			const loadMoreTexts = ['Загрузить ещё', 'Показать ещё', 'Ещё отзывы', 'Загрузить еще', 'Показать еще'];
+			const clickables = document.querySelectorAll('button, [role="button"], a, [class*="button"]');
 			for (const el of clickables) {
-				if (el.textContent.trim().includes('Загрузить ещё')) {
-					return el;
+				const text = el.textContent.trim();
+				for (const variant of loadMoreTexts) {
+					if (text.includes(variant)) return el;
 				}
 			}
 			return null;
@@ -252,9 +249,20 @@ func (p *TwoGisParser) loadMoreReviews(ctx context.Context, maxReviews int) erro
 			const currentCount = countReviews();
 			if (currentCount >= maxReviews) break;
 
+			// Stall detection: if count hasn't changed after 2 consecutive clicks, stop
+			if (currentCount === prevCount) {
+				noChangeCount++;
+				if (noChangeCount >= 2) break;
+			} else {
+				noChangeCount = 0;
+			}
+			prevCount = currentCount;
+
+			// Scroll button into view before clicking
+			btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			btn.click();
 			clicks++;
-			await new Promise(r => setTimeout(r, 2500));
+			await new Promise(r => setTimeout(r, 3500));
 		}
 		return 'clicked:' + clicks;
 	})()
@@ -356,35 +364,46 @@ func (p *TwoGisParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, 
 			}
 			if (!review.author) review.author = 'Аноним';
 
-			// Extract rating by counting filled/colored stars
-			const svgs = card.querySelectorAll('svg');
+			// Extract rating — try aria-label first (most reliable), then fill-color counting
 			let rating = 0;
-			let starCount = 0;
-			for (const svg of svgs) {
-				const paths = svg.querySelectorAll('path');
-				for (const path of paths) {
-					const fill = path.getAttribute('fill') || '';
-					const d = path.getAttribute('d') || '';
-					// Star paths typically have a specific d attribute pattern
-					if (d.length > 20) {
-						starCount++;
-						// Filled stars have colored fill (yellow/orange), empty stars have gray/light fill
-						if (fill && !fill.includes('none') &&
-							(fill.includes('#f') || fill.includes('#F') ||
-							 fill.includes('#e') || fill.includes('#E') ||
-							 fill === '#ffa500' || fill === '#FFA500' ||
-							 fill === '#FFB800' || fill === '#ffb800' ||
-							 fill.match(/^#[fFeEdD]/))) {
-							rating++;
+
+			// Method 1: aria-label "Оценка 4 из 5", "4 звезды", "Rated 4 out of 5", "4 stars"
+			const ratingContainers = card.querySelectorAll('[aria-label]');
+			for (const el of ratingContainers) {
+				const label = (el.getAttribute('aria-label') || '').toLowerCase();
+				const m = label.match(/(?:оценка|rated?|рейтинг)\s*[:–]?\s*(\d)/i) ||
+				          label.match(/(\d)\s*(?:звезд|stars?|из\s*5|out\s*of\s*5)/i);
+				if (m) {
+					rating = parseInt(m[1]);
+					if (rating >= 1 && rating <= 5) break;
+					rating = 0;
+				}
+			}
+
+			// Method 2: fill-color counting on SVG paths (yellow/orange = filled star)
+			if (rating === 0) {
+				const svgs = card.querySelectorAll('svg');
+				let filledCount = 0;
+				let starSvgCount = 0;
+				for (const svg of svgs) {
+					const paths = svg.querySelectorAll('path');
+					for (const path of paths) {
+						const fill = path.getAttribute('fill') || '';
+						const d = path.getAttribute('d') || '';
+						if (d.length > 20) {
+							starSvgCount++;
+							if (fill && !fill.includes('none') &&
+								(fill.match(/^#[fFeEdD]/i) || fill === '#ffa500' || fill === '#FFB800' || fill === '#ffb800')) {
+								filledCount++;
+							}
 						}
 					}
+					if (starSvgCount >= 5) break;
 				}
-				// If we found a group of exactly 5 star-like paths, stop
-				if (starCount >= 5) break;
+				if (filledCount > 0 && filledCount <= 5) rating = filledCount;
 			}
-			// Normalize: if we somehow got more than 5, cap at 5
-			if (rating > 5) rating = 5;
-			review.rating = rating || 5;
+
+			review.rating = (rating >= 1 && rating <= 5) ? rating : 5;
 
 			// Extract review text
 			// The review text is typically the longest text block in the card
