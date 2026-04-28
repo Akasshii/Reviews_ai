@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"reviews-ai/internal/application/usecase"
 	"reviews-ai/internal/domain/entity"
@@ -34,6 +35,7 @@ func (h *ReportHandler) CreateReport(c *gin.Context) {
 
 	report, err := h.reportUseCase.CreateReport(c.Request.Context(), userID.(uuid.UUID), &dto)
 	if err != nil {
+		log.Printf("[ReportHandler] CreateReport failed: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}

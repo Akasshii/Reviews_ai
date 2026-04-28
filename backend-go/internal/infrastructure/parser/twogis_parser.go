@@ -107,6 +107,19 @@ func (p *TwoGisParser) parseReviewsInternal(ctx context.Context, url string, opt
 		log.Printf("[TwoGisParser] WARNING: load more incomplete, returning partial results: %v", err)
 	}
 
+	// Expand truncated reviews ("Читать целиком") before extracting text
+	var expandedCount int
+	if err := chromedp.Run(tabCtx, chromedp.Evaluate(`(function(){
+		var btns = document.querySelectorAll('._1e65qgv');
+		btns.forEach(function(b){ b.click(); });
+		return btns.length;
+	})()`, &expandedCount, chromedp.EvalAsValue)); err == nil && expandedCount > 0 {
+		log.Printf("[TwoGisParser] Expanded %d truncated reviews", expandedCount)
+		if err := chromedp.Run(tabCtx, chromedp.Sleep(1*time.Second)); err != nil {
+			log.Printf("[TwoGisParser] sleep after expand: %v", err)
+		}
+	}
+
 	// Extract reviews from DOM
 	rawReviews, err := p.extractReviewsFromDOM(tabCtx)
 	if err != nil {
@@ -126,11 +139,15 @@ func (p *TwoGisParser) parseReviewsInternal(ctx context.Context, url string, opt
 	for _, raw := range rawReviews {
 		reviewDate := parseRelativeDate(raw.DateText)
 
-		if !opts.PeriodStart.IsZero() && reviewDate.Before(opts.PeriodStart) {
-			continue
-		}
-		if !opts.PeriodEnd.IsZero() && reviewDate.After(opts.PeriodEnd) {
-			continue
+		// Only apply date filter when the date was successfully parsed.
+		// Zero time means the date format was unrecognised — include the review rather than silently dropping it.
+		if !reviewDate.IsZero() {
+			if !opts.PeriodStart.IsZero() && reviewDate.Before(opts.PeriodStart) {
+				continue
+			}
+			if !opts.PeriodEnd.IsZero() && reviewDate.After(opts.PeriodEnd) {
+				continue
+			}
 		}
 
 		result = append(result, entity.ParsedReview{
@@ -203,260 +220,132 @@ func (p *TwoGisParser) loadMoreReviews(ctx context.Context, maxReviews int) erro
 		maxClicks = 40
 	}
 
-	loadMoreJS := fmt.Sprintf(`
-	(async function() {
-		const maxClicks = %d;
-		const maxReviews = %d;
-		let clicks = 0;
-		let prevCount = 0;
-		let noChangeCount = 0;
+	countJS := `(function() {
+		var byAttr = document.querySelectorAll('[data-review-id]');
+		if (byAttr.length > 0) return byAttr.length;
+		var allDivs = document.querySelectorAll('div');
+		var count = 0;
+		for (var div of allDivs) {
+			var stars = div.querySelectorAll(':scope > svg, :scope > span > svg');
+			if (stars.length === 5) count++;
+		}
+		if (count > 0) return count;
+		return document.querySelectorAll('[style*="pre-line"], [style*="line-clamp"]').length;
+	})()`
 
-		const countReviews = () => {
-			// Method 1: data-review-id
-			const byAttr = document.querySelectorAll('[data-review-id]');
-			if (byAttr.length > 0) return byAttr.length;
-
-			// Method 2: structural — divs containing star groups
-			const allDivs = document.querySelectorAll('div');
-			let count = 0;
-			for (const div of allDivs) {
-				const stars = div.querySelectorAll(':scope > svg, :scope > span > svg');
-				if (stars.length === 5) count++;
-			}
-			if (count > 0) return count;
-
-			// Method 3: text blocks that look like reviews
-			return document.querySelectorAll('[style*="pre-line"], [style*="line-clamp"]').length;
-		};
-
-		const findLoadMoreBtn = () => {
-			// All button-like elements — check multiple text variants
-			const loadMoreTexts = ['Загрузить ещё', 'Показать ещё', 'Ещё отзывы', 'Загрузить еще', 'Показать еще'];
-			const clickables = document.querySelectorAll('button, [role="button"], a, [class*="button"]');
-			for (const el of clickables) {
-				const text = el.textContent.trim();
-				for (const variant of loadMoreTexts) {
-					if (text.includes(variant)) return el;
+	clickOneJS := `(function() {
+		var loadMoreTexts = ['Загрузить ещё', 'Показать ещё', 'Ещё отзывы', 'Загрузить еще', 'Показать еще'];
+		var clickables = document.querySelectorAll('button, [role="button"], a, [class*="button"]');
+		for (var el of clickables) {
+			var text = el.textContent.trim();
+			for (var variant of loadMoreTexts) {
+				if (text.includes(variant)) {
+					el.scrollIntoView({ behavior: 'instant', block: 'center' });
+					el.click();
+					return true;
 				}
 			}
-			return null;
-		};
-
-		for (let i = 0; i < maxClicks; i++) {
-			const btn = findLoadMoreBtn();
-			if (!btn) break;
-
-			const currentCount = countReviews();
-			if (currentCount >= maxReviews) break;
-
-			// Stall detection: if count hasn't changed after 2 consecutive clicks, stop
-			if (currentCount === prevCount) {
-				noChangeCount++;
-				if (noChangeCount >= 2) break;
-			} else {
-				noChangeCount = 0;
-			}
-			prevCount = currentCount;
-
-			// Scroll button into view before clicking
-			btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			btn.click();
-			clicks++;
-			await new Promise(r => setTimeout(r, 3500));
 		}
-		return 'clicked:' + clicks;
-	})()
-	`, maxClicks, maxReviews)
+		return false;
+	})()`
 
-	var result string
-	if err := chromedp.Run(ctx, chromedp.Evaluate(loadMoreJS, &result, chromedp.EvalAsValue)); err != nil {
-		return fmt.Errorf("load more failed: %w", err)
+	var prevCount int
+	noChangeCount := 0
+
+	for i := 0; i < maxClicks; i++ {
+		var currentCount int
+		if err := chromedp.Run(ctx, chromedp.Evaluate(countJS, &currentCount, chromedp.EvalAsValue)); err != nil {
+			return fmt.Errorf("count failed: %w", err)
+		}
+		if currentCount >= maxReviews {
+			break
+		}
+		if currentCount == prevCount {
+			noChangeCount++
+			if noChangeCount >= 2 {
+				break
+			}
+		} else {
+			noChangeCount = 0
+		}
+		prevCount = currentCount
+
+		var clicked bool
+		if err := chromedp.Run(ctx, chromedp.Evaluate(clickOneJS, &clicked, chromedp.EvalAsValue)); err != nil {
+			return fmt.Errorf("click failed: %w", err)
+		}
+		if !clicked {
+			log.Printf("[TwoGisParser] No 'load more' button found after %d clicks", i)
+			break
+		}
+		log.Printf("[TwoGisParser] Load more click %d, current count: %d", i+1, currentCount)
+
+		if err := chromedp.Run(ctx, chromedp.Sleep(2500*time.Millisecond)); err != nil {
+			return err
+		}
 	}
-
-	log.Printf("[TwoGisParser] Load more result: %s", result)
 	return nil
 }
 
 // extractReviewsFromDOM extracts review data from the rendered 2GIS page via JavaScript.
+//
+// Карточка отзыва 2ГИС имеет такую структуру:
+//
+//	div (корень карточки, без класса)
+//	  ├── div._my60n2
+//	  │   └── span._19h0cqe  — имя автора (атрибут title содержит полное имя)
+//	  └── div._ai6fyf
+//	      ├── div._1fkin5c   — звёзды (width = rating * 16px)
+//	      ├── span._10c0hgu  — дата
+//	      └── div._83kmcy    — текст отзыва
+//	          └── a._oxthv5 / a._co8kyiw
 func (p *TwoGisParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, error) {
 	extractJS := `
 	(function() {
-		const results = [];
+		var results = [];
 
-		// Strategy: Find review cards in the DOM.
-		// 2GIS uses obfuscated class names, so we identify reviews by structure:
-		// Each review card contains: author name, star rating (5 SVGs), review text, date.
+		var containers = document.querySelectorAll('._83kmcy');
 
-		// Find the scrollable review list container
-		const findReviewCards = () => {
-			// Approach 1: Look for containers with data-review-id
-			let cards = document.querySelectorAll('[data-review-id]');
-			if (cards.length > 0) return Array.from(cards);
+		for (var i = 0; i < containers.length; i++) {
+			var container = containers[i];
 
-			// Approach 2: Look for elements matching the review card structure
-			// Review cards in 2GIS are typically direct children of the review list
-			// Each has: author block, stars block, text block, date block
-			const allDivs = document.querySelectorAll('div');
-			const candidates = [];
+			// contentArea = div._ai6fyf (содержит звёзды, дату и текст)
+			var contentArea = container.parentElement;
+			if (!contentArea) continue;
 
-			for (const div of allDivs) {
-				// A review card likely contains a date-like text and review text
-				const text = div.innerText || '';
-				const childDivs = div.querySelectorAll(':scope > div');
+			// cardRoot = общий родитель блока автора и блока контента
+			var cardRoot = contentArea.parentElement;
+			if (!cardRoot) continue;
 
-				// Check if this div has the right structure (3-6 direct child divs)
-				if (childDivs.length >= 2 && childDivs.length <= 10) {
-					// Must contain star SVGs
-					const svgs = div.querySelectorAll('svg');
-					if (svgs.length >= 5) {
-						// Must have some text content (review body)
-						if (text.length > 30 && text.length < 5000) {
-							// Check it's not a parent container (shouldn't contain too many SVG groups)
-							if (svgs.length <= 20) {
-								candidates.push(div);
-							}
-						}
-					}
-				}
+			// --- Текст ---
+			var textEl = container.querySelector('a._co8kyiw') ||
+			             container.querySelector('a._oxthv5') ||
+			             container.querySelector('a');
+			var text = textEl ? textEl.textContent.trim() : '';
+			if (!text || text.length < 2) continue;
+
+			// --- Дата ---
+			var dateEl = contentArea.querySelector('._10c0hgu');
+			var dateText = dateEl ? dateEl.textContent.trim() : '';
+
+			// --- Рейтинг ---
+			var rating = 5;
+			var starsEl = contentArea.querySelector('._1fkin5c');
+			if (starsEl && starsEl.style.width) {
+				var w = parseInt(starsEl.style.width);
+				if (w >= 16 && w <= 80) rating = Math.round(w / 16);
 			}
 
-			// Filter out parent-child duplicates (keep the most specific)
-			const filtered = candidates.filter(el => {
-				return !candidates.some(other => other !== el && el.contains(other));
-			});
-
-			return filtered;
-		};
-
-		const cards = findReviewCards();
-
-		for (const card of cards) {
-			const review = {};
-
-			// Extract author name
-			// In 2GIS, author name is typically a link or styled span near the top of the card
-			const links = card.querySelectorAll('a');
-			for (const link of links) {
-				const text = link.textContent.trim();
-				// Author names are short, don't contain typical non-name words
-				if (text && text.length > 1 && text.length < 60 &&
-					!text.includes('Загрузить') && !text.includes('отзыв') &&
-					!text.includes('Ответ') && !text.match(/^\d/)) {
-					review.author = text;
-					break;
-				}
-			}
-			if (!review.author) {
-				// Try spans with font-weight 500 or bold
-				const spans = card.querySelectorAll('span, div');
-				for (const span of spans) {
-					const style = window.getComputedStyle(span);
-					const text = span.textContent.trim();
-					if (text && text.length > 1 && text.length < 60 &&
-						(style.fontWeight === '500' || style.fontWeight === 'bold' || style.fontWeight === '700') &&
-						span.children.length === 0 &&
-						!text.includes('Загрузить') && !text.includes('отзыв') &&
-						!text.includes('Ответ')) {
-						review.author = text;
-						break;
-					}
-				}
-			}
-			if (!review.author) review.author = 'Аноним';
-
-			// Extract rating — try aria-label first (most reliable), then fill-color counting
-			let rating = 0;
-
-			// Method 1: aria-label "Оценка 4 из 5", "4 звезды", "Rated 4 out of 5", "4 stars"
-			const ratingContainers = card.querySelectorAll('[aria-label]');
-			for (const el of ratingContainers) {
-				const label = (el.getAttribute('aria-label') || '').toLowerCase();
-				const m = label.match(/(?:оценка|rated?|рейтинг)\s*[:–]?\s*(\d)/i) ||
-				          label.match(/(\d)\s*(?:звезд|stars?|из\s*5|out\s*of\s*5)/i);
-				if (m) {
-					rating = parseInt(m[1]);
-					if (rating >= 1 && rating <= 5) break;
-					rating = 0;
-				}
+			// --- Автор ---
+			// span._19h0cqe живёт в div._my60n2 — соседнем блоке с cardRoot.
+			// Атрибут title содержит полное имя; textContent — запасной вариант.
+			var author = 'Аноним';
+			var authorEl = cardRoot.querySelector('._19h0cqe');
+			if (authorEl) {
+				author = authorEl.getAttribute('title') || authorEl.textContent.trim() || 'Аноним';
 			}
 
-			// Method 2: fill-color counting on SVG paths (yellow/orange = filled star)
-			if (rating === 0) {
-				const svgs = card.querySelectorAll('svg');
-				let filledCount = 0;
-				let starSvgCount = 0;
-				for (const svg of svgs) {
-					const paths = svg.querySelectorAll('path');
-					for (const path of paths) {
-						const fill = path.getAttribute('fill') || '';
-						const d = path.getAttribute('d') || '';
-						if (d.length > 20) {
-							starSvgCount++;
-							if (fill && !fill.includes('none') &&
-								(fill.match(/^#[fFeEdD]/i) || fill === '#ffa500' || fill === '#FFB800' || fill === '#ffb800')) {
-								filledCount++;
-							}
-						}
-					}
-					if (starSvgCount >= 5) break;
-				}
-				if (filledCount > 0 && filledCount <= 5) rating = filledCount;
-			}
-
-			review.rating = (rating >= 1 && rating <= 5) ? rating : 5;
-
-			// Extract review text
-			// The review text is typically the longest text block in the card
-			const textElements = card.querySelectorAll('span, div, p');
-			let longestText = '';
-			for (const el of textElements) {
-				const text = el.textContent.trim();
-				const style = window.getComputedStyle(el);
-				// Review text usually has pre-line white-space or line-clamp
-				if (text.length > longestText.length && text.length > 15 && text.length < 3000) {
-					// Exclude elements that are clearly not review text
-					if (!text.includes('Загрузить ещё') &&
-						!text.includes('Ответ компании') &&
-						el.children.length <= 3) {
-						// Prefer elements with pre-line style (review text in 2GIS)
-						if (style.whiteSpace === 'pre-line' || style.webkitLineClamp) {
-							longestText = text;
-						} else if (text.length > longestText.length && longestText === '') {
-							longestText = text;
-						}
-					}
-				}
-			}
-			review.text = longestText;
-			if (!review.text) continue;
-
-			// Extract date
-			// Date in 2GIS is typically small gray text like "2 дня назад", "15 января 2025"
-			const allSpans = card.querySelectorAll('span, div, time');
-			for (const span of allSpans) {
-				const text = span.textContent.trim();
-				const style = window.getComputedStyle(span);
-
-				// Check for datetime attribute
-				const dt = span.getAttribute('datetime');
-				if (dt) {
-					review.dateText = dt;
-					break;
-				}
-
-				// Date text is typically short and gray
-				if (text.length > 3 && text.length < 40 &&
-					span.children.length === 0) {
-					// Check if it looks like a date
-					if (text.match(/назад|вчера|сегодня|январ|феврал|март|апрел|мая|июн|июл|август|сентябр|октябр|ноябр|декабр|\d{1,2}\.\d{1,2}\.\d{4}/i)) {
-						review.dateText = text;
-						break;
-					}
-				}
-			}
-			if (!review.dateText) review.dateText = '';
-
-			results.push(review);
+			results.push({ text: text, dateText: dateText, rating: rating, author: author });
 		}
 
 		return results;

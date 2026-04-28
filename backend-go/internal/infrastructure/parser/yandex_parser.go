@@ -614,19 +614,27 @@ func parseRelativeDate(dateText string) time.Time {
 	// Russian date format: "15 января 2025" or "15 января"
 	months := map[string]time.Month{
 		"январ":   time.January,
+		"янв":     time.January,
 		"феврал":  time.February,
+		"фев":     time.February,
 		"март":    time.March,
 		"апрел":   time.April,
+		"апр":     time.April,
 		"мая":     time.May,
 		"мае":     time.May,
 		"май":     time.May,
 		"июн":     time.June,
 		"июл":     time.July,
 		"август":  time.August,
+		"авг":     time.August,
 		"сентябр": time.September,
+		"сен":     time.September,
 		"октябр":  time.October,
+		"окт":     time.October,
 		"ноябр":   time.November,
+		"ноя":     time.November,
 		"декабр":  time.December,
+		"дек":     time.December,
 	}
 
 	reDate := regexp.MustCompile(`(\d{1,2})\s+(\S+?)(?:\s+(\d{4}))?$`)

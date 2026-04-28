@@ -68,12 +68,16 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 	reportID := uuid.New()
 
 	for _, pr := range parsedReviews {
-		// Date filtering is already done in the parser, only re-check if period is set
-		if !dto.PeriodStart.IsZero() && pr.Date.Before(dto.PeriodStart) {
-			continue
-		}
-		if !periodEnd.IsZero() && pr.Date.After(periodEnd) {
-			continue
+		// Date filtering is already done in the parser, but re-check for reviews with a
+		// successfully parsed date. Skip zero dates (unrecognised format) rather than
+		// dropping them — matches the same guard in the parser.
+		if !pr.Date.IsZero() {
+			if !dto.PeriodStart.IsZero() && pr.Date.Before(dto.PeriodStart) {
+				continue
+			}
+			if !periodEnd.IsZero() && pr.Date.After(periodEnd) {
+				continue
+			}
 		}
 
 		review := entity.Review{
@@ -145,25 +149,33 @@ func (uc *ReportUseCase) CreateReport(ctx context.Context, userID uuid.UUID, dto
 		UpdatedAt:          time.Now(),
 	}
 
-	if err := uc.reportRepo.Create(ctx, report); err != nil {
+	// Use a background context for all DB writes so that a cancelled HTTP request
+	// (e.g. frontend/proxy timeout after long parse+AI) doesn't abort the save.
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer dbCancel()
+
+	log.Printf("[ReportUseCase] Saving report to DB")
+	if err := uc.reportRepo.Create(dbCtx, report); err != nil {
 		return nil, fmt.Errorf("failed to create report: %w", err)
 	}
 
 	// 9. Save reviews
-	if err := uc.reviewRepo.CreateBatch(ctx, reviews); err != nil {
+	log.Printf("[ReportUseCase] Saving %d reviews to DB", len(reviews))
+	if err := uc.reviewRepo.CreateBatch(dbCtx, reviews); err != nil {
 		return nil, fmt.Errorf("failed to save reviews: %w", err)
 	}
 
 	// 10. Calculate and save category statistics
 	categoryStats := uc.calculateCategoryStats(reportID, reviews)
 	if len(categoryStats) > 0 {
-		if err := uc.reportRepo.CreateCategoryStats(ctx, categoryStats); err != nil {
+		log.Printf("[ReportUseCase] Saving %d category stats to DB", len(categoryStats))
+		if err := uc.reportRepo.CreateCategoryStats(dbCtx, categoryStats); err != nil {
 			return nil, fmt.Errorf("failed to save category stats: %w", err)
 		}
 	}
 
 	// 11. Load full report with relations
-	fullReport, err := uc.reportRepo.FindByID(ctx, reportID)
+	fullReport, err := uc.reportRepo.FindByID(dbCtx, reportID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Button } from '../../shared/ui';
-import { PlusIcon, MapPinIcon, TrashIcon, SearchIcon } from '../../shared/ui';
+import { PlusIcon, MapPinIcon, TrashIcon, SearchIcon, EditIcon } from '../../shared/ui';
 import { YandexMap, type SelectedOrganization } from '../../shared/ui';
 import { locationApi } from '../../shared/api/locationApi';
 import type { Location } from '../../shared/types';
@@ -12,6 +12,7 @@ export const LocationsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<SelectedOrganization | null>(null);
   const [addingFromMap, setAddingFromMap] = useState(false);
   const selectedOrgRef = useRef<HTMLDivElement>(null);
@@ -213,6 +214,14 @@ export const LocationsPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    icon={<EditIcon size={16} />}
+                    onClick={(e) => { e.stopPropagation(); setEditingLocation(loc); }}
+                  >
+                    Изменить
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     icon={<TrashIcon size={16} />}
                     onClick={(e) => handleDelete(loc.id, e)}
                     disabled={deletingId === loc.id}
@@ -236,9 +245,23 @@ export const LocationsPage = () => {
           }}
         />
       )}
+
+      {editingLocation && (
+        <EditLocationModal
+          location={editingLocation}
+          onClose={() => setEditingLocation(null)}
+          onSuccess={() => {
+            setEditingLocation(null);
+            loadLocations();
+          }}
+        />
+      )}
     </div>
   );
 };
+
+const isValid2GisUrl = (url: string): boolean =>
+  /2gis\.(ru|com)\/[^/]+\/firm\/\d+/.test(url.trim());
 
 // --- Helper: resolve org name + address from a Yandex Maps URL ---
 // Primary strategy: extract org ID from URL and use ymaps.findOrganization(id)
@@ -363,6 +386,9 @@ const AddLocationModal = ({
   const [resolvedAddress, setResolvedAddress] = useState('');
   const [yandexUrl, setYandexUrl] = useState('');
   const [twogisUrl, setTwogisUrl] = useState('');
+  const [twogisUrlError, setTwogisUrlError] = useState<string | null>(null);
+  const [twogisUrlValid, setTwogisUrlValid] = useState(false);
+  const [showTwogisHint, setShowTwogisHint] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -397,6 +423,22 @@ const AddLocationModal = ({
   // Trigger on blur (manual typing)
   const handleYandexUrlBlur = () => {
     resolveUrl(yandexUrl);
+  };
+
+  const handleTwogisUrlBlur = () => {
+    const trimmed = twogisUrl.trim();
+    if (!trimmed) {
+      setTwogisUrlError(null);
+      setTwogisUrlValid(false);
+      return;
+    }
+    if (isValid2GisUrl(trimmed)) {
+      setTwogisUrlError(null);
+      setTwogisUrlValid(true);
+    } else {
+      setTwogisUrlError('Неверный формат. Нужна ссылка вида: https://2gis.ru/город/firm/ID');
+      setTwogisUrlValid(false);
+    }
   };
 
   // Trigger immediately on paste
@@ -522,11 +564,31 @@ const AddLocationModal = ({
               <input
                 type="text"
                 value={twogisUrl}
-                onChange={(e) => setTwogisUrl(e.target.value)}
+                onChange={(e) => { setTwogisUrl(e.target.value); setTwogisUrlError(null); setTwogisUrlValid(false); }}
+                onBlur={handleTwogisUrlBlur}
                 placeholder="https://2gis.ru/.../firm/..."
                 className="date-input"
                 style={{ width: '100%' }}
               />
+              {twogisUrlError && <p className="field-error">{twogisUrlError}</p>}
+              {twogisUrlValid && <p className="field-success">✓ URL корректный</p>}
+              <button
+                type="button"
+                className="hint-toggle"
+                onClick={() => setShowTwogisHint(!showTwogisHint)}
+              >
+                {showTwogisHint ? '▲' : '▼'} Как найти ссылку на 2ГИС
+              </button>
+              {showTwogisHint && (
+                <div className="hint-panel">
+                  <ol className="hint-list">
+                    <li>Откройте 2gis.ru и найдите вашу организацию</li>
+                    <li>Откройте страницу организации</li>
+                    <li>Скопируйте URL из адресной строки</li>
+                  </ol>
+                  <p className="hint-example">Пример: https://2gis.ru/moscow/firm/123456789</p>
+                </div>
+              )}
             </div>
 
             <div className="modal-actions">
@@ -540,6 +602,144 @@ const AddLocationModal = ({
                 disabled={loading || resolving}
               >
                 {loading ? 'Создание...' : 'Добавить'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const EditLocationModal = ({
+  location,
+  onClose,
+  onSuccess,
+}: {
+  location: Location;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [name, setName] = useState(location.name);
+  const [yandexUrl, setYandexUrl] = useState(location.yandexUrl ?? '');
+  const [twogisUrl, setTwogisUrl] = useState(location.twogisUrl ?? '');
+  const [twogisUrlError, setTwogisUrlError] = useState<string | null>(null);
+  const [twogisUrlValid, setTwogisUrlValid] = useState(
+    !!location.twogisUrl && isValid2GisUrl(location.twogisUrl)
+  );
+  const [showTwogisHint, setShowTwogisHint] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleTwogisUrlBlur = () => {
+    const trimmed = twogisUrl.trim();
+    if (!trimmed) { setTwogisUrlError(null); setTwogisUrlValid(false); return; }
+    if (isValid2GisUrl(trimmed)) {
+      setTwogisUrlError(null); setTwogisUrlValid(true);
+    } else {
+      setTwogisUrlError('Неверный формат. Нужна ссылка вида: https://2gis.ru/город/firm/ID');
+      setTwogisUrlValid(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setError('Укажите название'); return; }
+    if (twogisUrl.trim() && !isValid2GisUrl(twogisUrl)) {
+      setError('Исправьте URL на 2ГИС'); return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await locationApi.updateLocation(location.id, {
+        name: name.trim(),
+        yandexUrl: yandexUrl.trim() || undefined,
+        twogisUrl: twogisUrl.trim() || undefined,
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.message || 'Ошибка сохранения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={() => !loading && onClose()}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <Card padding="lg">
+          <div style={{ padding: '0 0 var(--spacing-lg) 0' }}>
+            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Изменить филиал
+            </h2>
+          </div>
+          <div className="modal-form">
+            {error && (
+              <div style={{ padding: '12px', backgroundColor: '#fee', color: '#c00', borderRadius: '6px' }}>
+                {error}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Название</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="date-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">URL на Яндекс.Картах</label>
+              <input
+                type="text"
+                value={yandexUrl}
+                onChange={(e) => setYandexUrl(e.target.value)}
+                placeholder="https://yandex.ru/maps/org/..."
+                className="date-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">URL на 2ГИС</label>
+              <input
+                type="text"
+                value={twogisUrl}
+                onChange={(e) => { setTwogisUrl(e.target.value); setTwogisUrlError(null); setTwogisUrlValid(false); }}
+                onBlur={handleTwogisUrlBlur}
+                placeholder="https://2gis.ru/.../firm/..."
+                className="date-input"
+                style={{ width: '100%' }}
+              />
+              {twogisUrlError && <p className="field-error">{twogisUrlError}</p>}
+              {twogisUrlValid && <p className="field-success">✓ URL корректный</p>}
+              <button
+                type="button"
+                className="hint-toggle"
+                onClick={() => setShowTwogisHint(!showTwogisHint)}
+              >
+                {showTwogisHint ? '▲' : '▼'} Как найти ссылку на 2ГИС
+              </button>
+              {showTwogisHint && (
+                <div className="hint-panel">
+                  <ol className="hint-list">
+                    <li>Откройте 2gis.ru и найдите вашу организацию</li>
+                    <li>Откройте страницу организации</li>
+                    <li>Скопируйте URL из адресной строки</li>
+                  </ol>
+                  <p className="hint-example">Пример: https://2gis.ru/moscow/firm/123456789</p>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <Button variant="outline" onClick={onClose} fullWidth disabled={loading}>
+                Отмена
+              </Button>
+              <Button variant="primary" onClick={handleSubmit} fullWidth disabled={loading}>
+                {loading ? 'Сохранение...' : 'Сохранить'}
               </Button>
             </div>
           </div>
