@@ -320,12 +320,7 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
     }
 
     if (selectedPlatform === 'all') {
-      const urlsToCreate = [
-        { url: selectedLocation?.yandexUrl, label: 'Яндекс.Карты' },
-        { url: selectedLocation?.twogisUrl, label: '2ГИС' },
-      ].filter((p): p is { url: string; label: string } => !!p.url);
-
-      if (urlsToCreate.length === 0) {
+      if (!selectedLocation?.yandexUrl && !selectedLocation?.twogisUrl) {
         setError(`У филиала "${selectedLocation?.name}" нет ни одной ссылки. Добавьте их в разделе Филиалы.`);
         return;
       }
@@ -333,14 +328,14 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
       try {
         setLoading(true);
         setError(null);
-        for (const { url, label } of urlsToCreate) {
-          await reportApi.createReport({
-            title: `${title.trim()} — ${label}`,
-            url,
-            periodStart: new Date(startDate).toISOString(),
-            periodEnd: new Date(endDate).toISOString(),
-          });
-        }
+        await reportApi.createReport({
+          title: title.trim(),
+          allPlatforms: true,
+          yandexUrl: selectedLocation?.yandexUrl || undefined,
+          twogisUrl: selectedLocation?.twogisUrl || undefined,
+          periodStart: new Date(startDate).toISOString(),
+          periodEnd: new Date(endDate).toISOString(),
+        });
         onSuccess();
         onClose();
       } catch (err: any) {
@@ -387,7 +382,7 @@ const GenerateReportModal = ({ onClose, onSuccess }: { onClose: () => void; onSu
                 <div className="spinner" />
                 <p style={{ marginTop: '16px', fontSize: '1rem', color: 'var(--color-text-secondary)' }}>
                   {selectedPlatform === 'all'
-                    ? 'Создаём отчёты для всех платформ... Это может занять несколько минут'
+                    ? 'Собираем отзывы со всех платформ параллельно... Это может занять несколько минут'
                     : 'Собираем отзывы... Это может занять до 30 секунд'}
                 </p>
               </div>

@@ -67,5 +67,10 @@ export const normalizeReport = (report: any): Report => {
     }));
   }
 
+  // Прокидываем sourceStats как есть (ключи уже совпадают с бэкендом)
+  if (report.sourceStats) {
+    normalized.sourceStats = report.sourceStats;
+  }
+
   return normalized as Report;
 };

@@ -26,13 +26,21 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 		return err
 	}
 
+	var sourceStatsJSON []byte
+	if report.SourceStats != nil {
+		sourceStatsJSON, err = json.Marshal(report.SourceStats)
+		if err != nil {
+			return err
+		}
+	}
+
 	query := `
 		INSERT INTO reports (
-			id, user_id, title, period_start, period_end, source, summary,
+			id, user_id, title, period_start, period_end, source, source_stats, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 	`
 	_, err = r.db.ExecContext(ctx, query,
 		report.ID,
@@ -41,6 +49,7 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 		report.PeriodStart,
 		report.PeriodEnd,
 		report.Source,
+		nullableJSON(sourceStatsJSON),
 		report.Summary,
 		pq.Array(report.Insights),
 		pq.Array(report.Recommendations),
@@ -59,7 +68,7 @@ func (r *reportRepositoryImpl) Create(ctx context.Context, report *entity.Report
 func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*entity.Report, error) {
 	query := `
 		SELECT
-			id, user_id, title, period_start, period_end, source, summary,
+			id, user_id, title, period_start, period_end, source, source_stats, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
@@ -67,6 +76,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 	`
 	report := &entity.Report{}
 	var ratingDistJSON []byte
+	var sourceStatsJSON []byte
 	var insights, recommendations pq.StringArray
 
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
@@ -76,6 +86,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 		&report.PeriodStart,
 		&report.PeriodEnd,
 		&report.Source,
+		&sourceStatsJSON,
 		&report.Summary,
 		&insights,
 		&recommendations,
@@ -102,6 +113,13 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 		return nil, err
 	}
 
+	if len(sourceStatsJSON) > 0 {
+		var ss entity.SourcePlatformStats
+		if err := json.Unmarshal(sourceStatsJSON, &ss); err == nil {
+			report.SourceStats = &ss
+		}
+	}
+
 	// Load reviews
 	reviewsQuery := `
 		SELECT id, report_id, author, rating, text, date, source, categories, sentiment, created_at
@@ -117,7 +135,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 	for rows.Next() {
 		var review entity.Review
 		var categories pq.StringArray
-		err := rows.Scan(
+		if err := rows.Scan(
 			&review.ID,
 			&review.ReportID,
 			&review.Author,
@@ -128,8 +146,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 			&categories,
 			&review.Sentiment,
 			&review.CreatedAt,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		review.Categories = categories
@@ -151,7 +168,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 	var categoryStats []entity.CategoryStat
 	for statsRows.Next() {
 		var stat entity.CategoryStat
-		err := statsRows.Scan(
+		if err := statsRows.Scan(
 			&stat.ID,
 			&stat.ReportID,
 			&stat.Category,
@@ -160,8 +177,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 			&stat.Positive,
 			&stat.Neutral,
 			&stat.Negative,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 		categoryStats = append(categoryStats, stat)
@@ -174,7 +190,7 @@ func (r *reportRepositoryImpl) FindByID(ctx context.Context, id uuid.UUID) (*ent
 func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Report, error) {
 	query := `
 		SELECT
-			id, user_id, title, period_start, period_end, source, summary,
+			id, user_id, title, period_start, period_end, source, source_stats, summary,
 			insights, recommendations, total_reviews, average_rating,
 			positive_reviews, neutral_reviews, negative_reviews,
 			rating_distribution, created_at, updated_at
@@ -186,21 +202,22 @@ func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUI
 	}
 	defer rows.Close()
 
-	// Initialize with empty slice instead of nil
 	reports := make([]entity.Report, 0)
 
 	for rows.Next() {
 		var report entity.Report
 		var ratingDistJSON []byte
+		var sourceStatsJSON []byte
 		var insights, recommendations pq.StringArray
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&report.ID,
 			&report.UserID,
 			&report.Title,
 			&report.PeriodStart,
 			&report.PeriodEnd,
 			&report.Source,
+			&sourceStatsJSON,
 			&report.Summary,
 			&insights,
 			&recommendations,
@@ -212,8 +229,7 @@ func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUI
 			&ratingDistJSON,
 			&report.CreatedAt,
 			&report.UpdatedAt,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
 
@@ -222,6 +238,13 @@ func (r *reportRepositoryImpl) FindByUserID(ctx context.Context, userID uuid.UUI
 
 		if err := json.Unmarshal(ratingDistJSON, &report.RatingDistribution); err != nil {
 			return nil, err
+		}
+
+		if len(sourceStatsJSON) > 0 {
+			var ss entity.SourcePlatformStats
+			if err := json.Unmarshal(sourceStatsJSON, &ss); err == nil {
+				report.SourceStats = &ss
+			}
 		}
 
 		reports = append(reports, report)
@@ -264,8 +287,7 @@ func (r *reportRepositoryImpl) Update(ctx context.Context, report *entity.Report
 }
 
 func (r *reportRepositoryImpl) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM reports WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.ExecContext(ctx, `DELETE FROM reports WHERE id = $1`, id)
 	return err
 }
 
@@ -275,7 +297,7 @@ func (r *reportRepositoryImpl) CreateCategoryStats(ctx context.Context, stats []
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	for _, stat := range stats {
-		_, err := r.db.ExecContext(ctx, query,
+		if _, err := r.db.ExecContext(ctx, query,
 			stat.ID,
 			stat.ReportID,
 			stat.Category,
@@ -284,10 +306,17 @@ func (r *reportRepositoryImpl) CreateCategoryStats(ctx context.Context, stats []
 			stat.Positive,
 			stat.Neutral,
 			stat.Negative,
-		)
-		if err != nil {
+		); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// nullableJSON возвращает nil если срез пустой (для передачи NULL в БД).
+func nullableJSON(b []byte) interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+	return b
 }

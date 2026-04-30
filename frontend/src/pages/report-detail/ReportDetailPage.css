@@ -1,14 +1,18 @@
+/* ── Page layout ─────────────────────────────────────────────── */
 .report-detail-page {
   padding: var(--spacing-xl);
   max-width: 1400px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
 }
 
+/* ── Header ───────────────────────────────────────────────────── */
 .report-detail-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-xl);
 }
 
 .report-detail-actions {
@@ -16,12 +20,12 @@
   gap: var(--spacing-sm);
 }
 
+/* ── Title section ────────────────────────────────────────────── */
 .report-detail-title-section {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
 }
 
 .report-detail-title {
@@ -60,10 +64,7 @@
   font-weight: 700;
 }
 
-.report-summary-card {
-  margin-bottom: var(--spacing-xl);
-}
-
+/* ── Summary card ─────────────────────────────────────────────── */
 .report-summary-text {
   font-size: 1rem;
   line-height: 1.7;
@@ -71,11 +72,11 @@
   margin: 0;
 }
 
+/* ── Stat cards grid ─────────────────────────────────────────── */
 .report-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--spacing-md);
-  margin-bottom: var(--spacing-xl);
 }
 
 .stat-item {
@@ -108,6 +109,169 @@
   color: var(--color-error);
 }
 
+/* ── Clickable stat cards ─────────────────────────────────────── */
+.stat-card-clickable {
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.stat-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card-active {
+  box-shadow: 0 0 0 2px var(--color-primary, #6366f1);
+}
+
+.stat-card-active--positive {
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.stat-card-active--neutral {
+  box-shadow: 0 0 0 2px #f59e0b;
+}
+
+.stat-card-active--negative {
+  box-shadow: 0 0 0 2px #ef4444;
+}
+
+/* ── Platform filter bar ─────────────────────────────────────── */
+.platform-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.platform-filter-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* ── Platform stats cards (inside "Статистика по платформам") ── */
+.platform-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.psc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-left-width: 4px;
+  background: var(--color-surface);
+}
+
+.psc--yandex {
+  border-left-color: #e8342a;
+}
+
+.psc--twogis {
+  border-left-color: #1b8c57;
+}
+
+.psc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.psc-platform-name {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.psc-platform-name--yandex {
+  color: #e8342a;
+}
+
+.psc-platform-name--twogis {
+  color: #1b8c57;
+}
+
+.psc-rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.psc-divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.psc-total {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.psc-total strong {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-right: 4px;
+}
+
+.psc-sentiments {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.psc-sent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 6px;
+  border-radius: 8px;
+}
+
+.psc-sent--positive {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.psc-sent--neutral {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.psc-sent--negative {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.psc-sent-count {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.psc-sent--positive .psc-sent-count {
+  color: #10b981;
+}
+
+.psc-sent--neutral .psc-sent-count {
+  color: #f59e0b;
+}
+
+.psc-sent--negative .psc-sent-count {
+  color: #ef4444;
+}
+
+.psc-sent-label {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  text-align: center;
+}
+
+/* ── Category cards ───────────────────────────────────────────── */
 .categories-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -143,42 +307,24 @@
   color: var(--color-text-secondary);
 }
 
-.category-sentiment {
-  margin-top: var(--spacing-xs);
+.category-card-clickable {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.sentiment-bar {
-  display: flex;
-  height: 0.5rem;
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  background-color: var(--color-background);
+.category-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
-.sentiment-segment {
-  transition: width var(--transition-base);
-}
-
-.sentiment-segment--positive {
-  background-color: var(--color-success);
-}
-
-.sentiment-segment--neutral {
-  background-color: var(--color-warning);
-}
-
-.sentiment-segment--negative {
-  background-color: var(--color-error);
-}
-
+/* ── Insights & Recommendations ───────────────────────────────── */
 .report-content-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
 }
 
-.insights-list {
+/* Единый список — шрифт, размер и цвет задаются здесь один раз */
+.report-items-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -187,35 +333,31 @@
   gap: var(--spacing-md);
 }
 
-.insight-item {
-  padding: var(--spacing-md);
-  padding-left: var(--spacing-xl);
+.report-items-list__item {
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-md);
+  border-left-width: 3px;
+  border-left-style: solid;
+  /* типографика — задаётся один раз, одинаково для обоих типов */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: #000000;
+}
+
+/* Только цвет фона и рамки отличается */
+.report-items-list__item--insight {
   background-color: rgba(59, 130, 246, 0.05);
-  border-left: 3px solid var(--color-info);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  line-height: 1.6;
+  border-left-color: #3b82f6;
 }
 
-.recommendations-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.recommendation-item {
-  padding: var(--spacing-md);
-  padding-left: var(--spacing-xl);
+.report-items-list__item--rec {
   background-color: rgba(16, 185, 129, 0.05);
-  border-left: 3px solid var(--color-success);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  line-height: 1.6;
+  border-left-color: #10b981;
 }
 
+/* ── Reviews ──────────────────────────────────────────────────── */
 .reviews-list-detail {
   display: flex;
   flex-direction: column;
@@ -335,44 +477,12 @@
   color: var(--color-error);
 }
 
+/* ── Misc ─────────────────────────────────────────────────────── */
 .report-not-found {
   padding: var(--spacing-2xl);
   text-align: center;
 }
 
-@media (max-width: 1024px) {
-  .report-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .report-content-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .report-detail-title-section {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 640px) {
-  .report-detail-page {
-    padding: var(--spacing-lg);
-  }
-
-  .report-stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .report-detail-title {
-    font-size: 1.75rem;
-  }
-
-  .categories-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* View Mode Toggle */
 .view-mode-toggle {
   display: flex;
   gap: var(--spacing-xs);
@@ -430,56 +540,6 @@
   margin: 0;
 }
 
-@media (max-width: 768px) {
-  .view-mode-toggle {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .report-detail-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-}
-
-/* Clickable stat cards */
-.stat-card-clickable {
-  cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.stat-card-clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-.stat-card-active {
-  box-shadow: 0 0 0 2px var(--color-primary, #6366f1);
-}
-
-.stat-card-active--positive {
-  box-shadow: 0 0 0 2px #10b981;
-}
-
-.stat-card-active--neutral {
-  box-shadow: 0 0 0 2px #f59e0b;
-}
-
-.stat-card-active--negative {
-  box-shadow: 0 0 0 2px #ef4444;
-}
-
-/* Clickable category cards */
-.category-card-clickable {
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.category-card-clickable:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-/* Reviews filter badge */
 .reviews-filter-badge {
   display: inline-flex;
   align-items: center;
@@ -512,4 +572,58 @@
 
 .reviews-filter-clear:hover {
   background-color: rgba(99, 102, 241, 0.2);
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .report-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .report-content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-detail-title-section {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 768px) {
+  .view-mode-toggle {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .report-detail-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .platform-filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .report-detail-page {
+    padding: var(--spacing-lg);
+  }
+
+  .report-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-detail-title {
+    font-size: 1.75rem;
+  }
+
+  .categories-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .psc-sentiments {
+    flex-direction: column;
+  }
 }

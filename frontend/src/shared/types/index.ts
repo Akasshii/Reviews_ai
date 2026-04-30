@@ -31,6 +31,20 @@ export interface CategoryStats {
   };
 }
 
+export interface PlatformStats {
+  totalReviews: number;
+  averageRating: number;
+  positiveReviews: number;
+  neutralReviews: number;
+  negativeReviews: number;
+  ratingDistribution: { 1: number; 2: number; 3: number; 4: number; 5: number };
+}
+
+export interface SourcePlatformStats {
+  yandex?: PlatformStats;
+  '2gis'?: PlatformStats;
+}
+
 export interface Report {
   id: string;
   title: string;
@@ -62,6 +76,7 @@ export interface Report {
     neutralReviews: number;
     negativeReviews: number;
   };
+  sourceStats?: SourcePlatformStats;
   insights: string[];
   recommendations: string[];
   summary?: string;

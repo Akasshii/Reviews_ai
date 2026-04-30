@@ -5,7 +5,10 @@ export interface CreateReportDTO {
   title: string;
   periodStart: string;
   periodEnd: string;
-  url: string;
+  url?: string;
+  allPlatforms?: boolean;
+  yandexUrl?: string;
+  twogisUrl?: string;
 }
 
 export const reportApi = {
