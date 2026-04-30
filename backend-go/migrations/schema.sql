@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS reports (
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
   source VARCHAR(50) DEFAULT 'yandex',
+  source_stats JSONB,
   summary TEXT,
   insights TEXT[], -- Array of strings
   recommendations TEXT[], -- Array of strings
