@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/u
 import { StarIcon, CalendarIcon, DownloadIcon, BarChartIcon } from '../../shared/ui';
 import { reportApi } from '../../shared/api/reportApi';
 import { normalizeReport } from '../../shared/lib/reportHelpers';
+import { exportReportPdf } from '../../shared/lib/exportPdf';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { ReviewCategory, Report, CategoryStats } from '../../shared/types';
@@ -212,7 +213,7 @@ export const ReportDetailPage = () => {
       <div className="report-detail-header">
         <Button variant="ghost" onClick={() => navigate('/reports')}>← Назад к отчетам</Button>
         <div className="report-detail-actions">
-          <Button variant="outline" icon={<DownloadIcon size={18} />}>Экспорт PDF</Button>
+          <Button variant="outline" icon={<DownloadIcon size={18} />} onClick={() => exportReportPdf(report)}>Экспорт PDF</Button>
         </div>
       </div>
 
