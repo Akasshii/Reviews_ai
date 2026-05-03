@@ -15,6 +15,8 @@ export const LocationsPage = () => {
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [selectedOrg, setSelectedOrg] = useState<SelectedOrganization | null>(null);
   const [addingFromMap, setAddingFromMap] = useState(false);
+  const [selectedOrgTwogisUrl, setSelectedOrgTwogisUrl] = useState<string>('');
+  const [searchingTwogis, setSearchingTwogis] = useState(false);
   const selectedOrgRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,6 +66,12 @@ export const LocationsPage = () => {
 
   const handleOrganizationSelect = (org: SelectedOrganization) => {
     setSelectedOrg(org);
+    setSelectedOrgTwogisUrl('');
+    setSearchingTwogis(true);
+    locationApi.findTwoGisUrl(org.name, org.address || undefined)
+      .then((url) => setSelectedOrgTwogisUrl(url))
+      .catch(() => setSelectedOrgTwogisUrl(''))
+      .finally(() => setSearchingTwogis(false));
   };
 
   const handleAddFromMap = async () => {
@@ -77,8 +85,10 @@ export const LocationsPage = () => {
         latitude: selectedOrg.latitude,
         longitude: selectedOrg.longitude,
         yandexUrl: selectedOrg.yandexUrl || undefined,
+        twogisUrl: selectedOrgTwogisUrl || undefined,
       });
       setSelectedOrg(null);
+      setSelectedOrgTwogisUrl('');
       loadLocations();
     } catch (err: any) {
       alert('Ошибка добавления: ' + (err.message || 'Неизвестная ошибка'));
@@ -145,16 +155,23 @@ export const LocationsPage = () => {
                 {selectedOrg.address && (
                   <p className="selected-org-address">{selectedOrg.address}</p>
                 )}
+                <p className="selected-org-twogis-status">
+                  {searchingTwogis
+                    ? 'Ищем на 2ГИС...'
+                    : selectedOrgTwogisUrl
+                      ? '2ГИС: найдено'
+                      : '2ГИС: не найдено'}
+                </p>
               </div>
             </div>
             <div className="selected-org-actions">
               <Button
                 variant="primary"
                 onClick={handleAddFromMap}
-                disabled={addingFromMap}
+                disabled={addingFromMap || searchingTwogis}
                 icon={<PlusIcon size={18} />}
               >
-                {addingFromMap ? 'Добавление...' : 'Добавить филиал'}
+                {addingFromMap ? 'Добавление...' : searchingTwogis ? 'Ищем на 2ГИС...' : 'Добавить филиал'}
               </Button>
               <Button variant="outline" onClick={() => setSelectedOrg(null)}>
                 Отменить
@@ -199,14 +216,7 @@ export const LocationsPage = () => {
                         2ГИС ↗
                       </a>
                     ) : (
-                      <a
-                        href={`https://2gis.ru/search/${encodeURIComponent(loc.name + (loc.address ? ', ' + loc.address : ''))}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="location-badge platform-badge--2gis-search"
-                      >
-                        Найти на 2ГИС →
-                      </a>
+                      <span className="location-badge platform-badge--2gis-missing">2ГИС —</span>
                     )}
                   </div>
                 </div>
@@ -388,12 +398,12 @@ const AddLocationModal = ({
   const [twogisUrl, setTwogisUrl] = useState('');
   const [twogisUrlError, setTwogisUrlError] = useState<string | null>(null);
   const [twogisUrlValid, setTwogisUrlValid] = useState(false);
-  const [showTwogisHint, setShowTwogisHint] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [searchingTwogis, setSearchingTwogis] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Resolve org info from a Yandex Maps URL
+  // Resolve org info from a Yandex Maps URL, then auto-search 2GIS
   const resolveUrl = async (url: string) => {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -408,10 +418,15 @@ const AddLocationModal = ({
       if (result) {
         setResolvedName(result.name);
         setResolvedAddress(result.address);
-        // Auto-fill name if user hasn't typed one
         if (!name.trim() && result.name) {
           setName(result.name);
         }
+        // Auto-search 2GIS using resolved name + address
+        setSearchingTwogis(true);
+        locationApi.findTwoGisUrl(result.name, result.address || undefined)
+          .then((found) => { if (found) setTwogisUrl(found); })
+          .catch(() => {})
+          .finally(() => setSearchingTwogis(false));
       }
     } catch {
       // Silently fail
@@ -566,29 +581,14 @@ const AddLocationModal = ({
                 value={twogisUrl}
                 onChange={(e) => { setTwogisUrl(e.target.value); setTwogisUrlError(null); setTwogisUrlValid(false); }}
                 onBlur={handleTwogisUrlBlur}
-                placeholder="https://2gis.ru/.../firm/..."
+                placeholder={searchingTwogis ? 'Ищем на 2ГИС...' : 'https://2gis.ru/.../firm/...'}
                 className="date-input"
                 style={{ width: '100%' }}
+                disabled={searchingTwogis}
               />
-              {twogisUrlError && <p className="field-error">{twogisUrlError}</p>}
-              {twogisUrlValid && <p className="field-success">✓ URL корректный</p>}
-              <button
-                type="button"
-                className="hint-toggle"
-                onClick={() => setShowTwogisHint(!showTwogisHint)}
-              >
-                {showTwogisHint ? '▲' : '▼'} Как найти ссылку на 2ГИС
-              </button>
-              {showTwogisHint && (
-                <div className="hint-panel">
-                  <ol className="hint-list">
-                    <li>Откройте 2gis.ru и найдите вашу организацию</li>
-                    <li>Откройте страницу организации</li>
-                    <li>Скопируйте URL из адресной строки</li>
-                  </ol>
-                  <p className="hint-example">Пример: https://2gis.ru/moscow/firm/123456789</p>
-                </div>
-              )}
+              {searchingTwogis && <p className="resolve-preview">Ищем на 2ГИС...</p>}
+              {!searchingTwogis && twogisUrlError && <p className="field-error">{twogisUrlError}</p>}
+              {!searchingTwogis && twogisUrlValid && <p className="field-success">✓ URL корректный</p>}
             </div>
 
             <div className="modal-actions">
@@ -599,7 +599,7 @@ const AddLocationModal = ({
                 variant="primary"
                 onClick={handleSubmit}
                 fullWidth
-                disabled={loading || resolving}
+                disabled={loading || resolving || searchingTwogis}
               >
                 {loading ? 'Создание...' : 'Добавить'}
               </Button>

@@ -1,4 +1,4 @@
-.PHONY: help setup env db-create db-schema db-reset backend frontend dev build lint docker-build docker-run clean logs health
+.PHONY: help setup env db-create db-schema db-reset backend frontend dev stop build lint docker-build docker-run clean logs health
 
 # Цвета для вывода
 GREEN  := \033[0;32m
@@ -68,7 +68,12 @@ frontend:
 	@echo "$(CYAN)React frontend → http://localhost:5173$(NC)"
 	cd frontend && npm run dev
 
-dev:
+stop:
+	@echo "$(YELLOW)Останавливаю backend на порту 3001...$(NC)"
+	@powershell -Command "Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$$_.OwningProcess -Force -ErrorAction SilentlyContinue }" 2>/dev/null || true
+	@echo "$(GREEN)Готово$(NC)"
+
+dev: stop
 	@echo "$(CYAN)Запускаю backend + frontend...$(NC)"
 	@echo "  Backend:  http://localhost:3001"
 	@echo "  Frontend: http://localhost:5173"

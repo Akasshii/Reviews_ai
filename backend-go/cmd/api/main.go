@@ -53,7 +53,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authUseCase)
 	userHandler := handler.NewUserHandler(userUseCase)
 	reportHandler := handler.NewReportHandler(reportUseCase)
-	locationHandler := handler.NewLocationHandler(locationUseCase)
+	locationHandler := handler.NewLocationHandler(locationUseCase, twoGisParser)
 
 	// Setup Gin
 	ginMode := os.Getenv("GIN_MODE")
@@ -110,6 +110,7 @@ func main() {
 		{
 			locations.POST("", locationHandler.CreateLocation)
 			locations.GET("", locationHandler.GetLocations)
+			locations.GET("/find-2gis", locationHandler.FindTwoGisURL)
 			locations.GET("/:id", locationHandler.GetLocationByID)
 			locations.PUT("/:id", locationHandler.UpdateLocation)
 			locations.DELETE("/:id", locationHandler.DeleteLocation)

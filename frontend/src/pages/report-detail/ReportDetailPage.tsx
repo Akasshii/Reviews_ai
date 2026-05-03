@@ -18,19 +18,19 @@ const categoryLabels: Record<ReviewCategory, string> = {
 };
 
 const categoryColors: Record<ReviewCategory, string> = {
-  quality: '#6366f1',
-  service: '#8b5cf6',
-  cleanliness: '#10b981',
-  atmosphere: '#f59e0b',
-  price: '#ef4444',
+  quality: '#818cf8',
+  service: '#a78bfa',
+  cleanliness: '#34d399',
+  atmosphere: '#fbbf24',
+  price: '#f87171',
 };
 
 const getRatingColor = (rating: number) => {
-  if (rating >= 4.5) return '#10b981';
-  if (rating >= 4.0) return '#3b82f6';
-  if (rating >= 3.5) return '#f59e0b';
+  if (rating >= 4.5) return '#34d399';
+  if (rating >= 4.0) return '#60a5fa';
+  if (rating >= 3.5) return '#fbbf24';
   if (rating >= 3.0) return '#fb923c';
-  return '#ef4444';
+  return '#f87171';
 };
 
 // Вычисляет CategoryStats из массива отзывов (для фильтрации по платформе)
@@ -65,8 +65,24 @@ export const ReportDetailPage = () => {
   const [categoryFilter, setCategoryFilter] = useState<ReviewCategory | null>(null);
   const [platformFilter, setPlatformFilter] = useState<'all' | 'yandex' | '2gis'>('all');
   const reviewsSectionRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const [reviewPlatformFilter, setReviewPlatformFilter] = useState<'all' | 'yandex' | '2gis'>('all');
+  const [reviewSortOrder, setReviewSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [reviewDateFrom, setReviewDateFrom] = useState<string>('');
+  const [reviewDateTo, setReviewDateTo] = useState<string>('');
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   useEffect(() => { if (id) loadReport(id); }, [id]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadReport = async (reportId: string) => {
     try {
@@ -100,6 +116,9 @@ export const ReportDetailPage = () => {
   const clearFilters = () => {
     setSentimentFilter(null);
     setCategoryFilter(null);
+    setReviewPlatformFilter('all');
+    setReviewDateFrom('');
+    setReviewDateTo('');
   };
 
   const handlePlatformChange = (p: 'all' | 'yandex' | '2gis') => {
@@ -137,16 +156,31 @@ export const ReportDetailPage = () => {
     };
   }, [isCombined, platformFilter, report]);
 
-  // Итоговый список отзывов (платформа + тональность + категория)
+  // Итоговый список отзывов (все фильтры + сортировка)
   const filteredReviews = useMemo(() => {
-    return platformReviews.filter(review => {
+    const all = report?.reviews ?? [];
+    const result = all.filter(review => {
+      if (reviewPlatformFilter !== 'all' && review.platform !== reviewPlatformFilter) return false;
       if (sentimentFilter && sentimentFilter !== 'all' && review.sentiment !== sentimentFilter) return false;
       if (categoryFilter && !review.categories?.includes(categoryFilter)) return false;
+      if (reviewDateFrom) {
+        const from = new Date(reviewDateFrom);
+        if (review.date < from) return false;
+      }
+      if (reviewDateTo) {
+        const to = new Date(reviewDateTo);
+        to.setHours(23, 59, 59, 999);
+        if (review.date > to) return false;
+      }
       return true;
     });
-  }, [platformReviews, sentimentFilter, categoryFilter]);
+    result.sort((a, b) =>
+      reviewSortOrder === 'newest' ? b.date.getTime() - a.date.getTime() : a.date.getTime() - b.date.getTime()
+    );
+    return result;
+  }, [report?.reviews, reviewPlatformFilter, sentimentFilter, categoryFilter, reviewSortOrder, reviewDateFrom, reviewDateTo]);
 
-  const activeFilter = sentimentFilter || (categoryFilter ? `category:${categoryFilter}` : null);
+  const hasActiveQuickFilter = !!(sentimentFilter && sentimentFilter !== 'all') || !!categoryFilter;
 
   if (loading) return (
     <div className="report-detail-page">
@@ -456,9 +490,6 @@ export const ReportDetailPage = () => {
                   <li key={i} className="report-items-list__item report-items-list__item--insight">{insight}</li>
                 ))}
               </ul>
-              {report.insights.length > 3 && (
-                <p className="show-more-hint">+{report.insights.length - 3} дополнительных инсайтов в расширенной версии</p>
-              )}
             </CardContent>
           </Card>
           <Card padding="lg">
@@ -469,9 +500,6 @@ export const ReportDetailPage = () => {
                   <li key={i} className="report-items-list__item report-items-list__item--rec">{rec}</li>
                 ))}
               </ul>
-              {report.recommendations.length > 3 && (
-                <p className="show-more-hint">+{report.recommendations.length - 3} дополнительных рекомендаций в расширенной версии</p>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -508,34 +536,91 @@ export const ReportDetailPage = () => {
               <div className="card-header-with-action">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <CardTitle>
-                    Отзывы ({activeFilter ? filteredReviews.length : (viewMode === 'summary' ? Math.min(5, filteredReviews.length) : filteredReviews.length)})
+                    Отзывы ({filteredReviews.length}{filteredReviews.length !== report.reviews.length ? ` из ${report.reviews.length}` : ''})
                   </CardTitle>
-                  {activeFilter && (
+                  {hasActiveQuickFilter && (
                     <div className="reviews-filter-badge">
                       <span>
-                        {sentimentFilter === 'all' && 'Все отзывы'}
                         {sentimentFilter === 'positive' && 'Позитивные отзывы'}
                         {sentimentFilter === 'neutral' && 'Нейтральные отзывы'}
                         {sentimentFilter === 'negative' && 'Негативные отзывы'}
                         {categoryFilter && `Категория: ${categoryLabels[categoryFilter]}`}
                       </span>
-                      <button className="reviews-filter-clear" onClick={clearFilters} title="Сбросить фильтр">✕</button>
+                      <button className="reviews-filter-clear" onClick={clearFilters} title="Сбросить фильтры">✕</button>
                     </div>
                   )}
                 </div>
-                {!activeFilter && viewMode === 'summary' && filteredReviews.length > 5 && (
-                  <span className="hint-text">Показаны первые 5 из {filteredReviews.length}</span>
-                )}
+                <div className="rff-sort-trigger" ref={sortDropdownRef}>
+                  <button
+                    className={`rff-sort-btn${showSortDropdown ? ' rff-sort-btn--open' : ''}${reviewDateFrom || reviewDateTo ? ' rff-sort-btn--dated' : ''}`}
+                    onClick={() => setShowSortDropdown(v => !v)}
+                  >
+                    <span className="rff-sort-icon">⇅</span>
+                    <span>{reviewSortOrder === 'newest' ? 'Сначала новые' : 'Сначала старые'}</span>
+                    {(reviewDateFrom || reviewDateTo) && <span className="rff-sort-dot" />}
+                    <span className={`rff-sort-chevron${showSortDropdown ? ' rff-sort-chevron--up' : ''}`}>▾</span>
+                  </button>
+                  {showSortDropdown && (
+                    <div className="rff-sort-dropdown">
+                      <div className="rff-group">
+                        <span className="rff-label">Сортировка</span>
+                        <div className="rff-buttons">
+                          <button
+                            className={`rff-btn${reviewSortOrder === 'newest' ? ' rff-btn--active' : ''}`}
+                            onClick={() => setReviewSortOrder('newest')}
+                          >Сначала новые</button>
+                          <button
+                            className={`rff-btn${reviewSortOrder === 'oldest' ? ' rff-btn--active' : ''}`}
+                            onClick={() => setReviewSortOrder('oldest')}
+                          >Сначала старые</button>
+                        </div>
+                      </div>
+                      <div className="rff-group">
+                        <span className="rff-label">Период</span>
+                        <div className="rff-date-range">
+                          <input type="date" value={reviewDateFrom} onChange={e => setReviewDateFrom(e.target.value)} className="rff-date-input" />
+                          <span className="rff-date-sep">—</span>
+                          <input type="date" value={reviewDateTo} onChange={e => setReviewDateTo(e.target.value)} className="rff-date-input" />
+                          {(reviewDateFrom || reviewDateTo) && (
+                            <button className="rff-date-clear" onClick={() => { setReviewDateFrom(''); setReviewDateTo(''); }}>✕</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {activeFilter && filteredReviews.length === 0 && (
+              <div className="reviews-filters-panel">
+                <div className="rff-group">
+                  <span className="rff-label">Тональность</span>
+                  <div className="rff-buttons">
+                    <button className={`rff-btn${!sentimentFilter || sentimentFilter === 'all' ? ' rff-btn--active' : ''}`} onClick={() => setSentimentFilter(null)}>Все</button>
+                    <button className={`rff-btn rff-btn--positive${sentimentFilter === 'positive' ? ' rff-btn--active' : ''}`} onClick={() => setSentimentFilter('positive')}>Позитивные</button>
+                    <button className={`rff-btn rff-btn--neutral${sentimentFilter === 'neutral' ? ' rff-btn--active' : ''}`} onClick={() => setSentimentFilter('neutral')}>Нейтральные</button>
+                    <button className={`rff-btn rff-btn--negative${sentimentFilter === 'negative' ? ' rff-btn--active' : ''}`} onClick={() => setSentimentFilter('negative')}>Негативные</button>
+                  </div>
+                </div>
+                {isCombined && (
+                  <div className="rff-group">
+                    <span className="rff-label">Платформа</span>
+                    <div className="rff-buttons">
+                      <button className={`rff-btn${reviewPlatformFilter === 'all' ? ' rff-btn--active' : ''}`} onClick={() => setReviewPlatformFilter('all')}>Все</button>
+                      <button className={`rff-btn${reviewPlatformFilter === 'yandex' ? ' rff-btn--active' : ''}`} onClick={() => setReviewPlatformFilter('yandex')}>Яндекс</button>
+                      <button className={`rff-btn${reviewPlatformFilter === '2gis' ? ' rff-btn--active' : ''}`} onClick={() => setReviewPlatformFilter('2gis')}>2ГИС</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {filteredReviews.length === 0 && (
                 <p style={{ color: 'var(--color-text-secondary)', textAlign: 'center', padding: '24px 0' }}>
-                  Отзывов по выбранному фильтру не найдено
+                  Отзывов по выбранным фильтрам не найдено
                 </p>
               )}
               <div className="reviews-list-detail">
-                {(activeFilter ? filteredReviews : (viewMode === 'summary' ? filteredReviews.slice(0, 5) : filteredReviews)).map((review) => (
+                {filteredReviews.map((review) => (
                   <div key={review.id} className="review-card-detail">
                     <div className="review-card-header">
                       <div className="review-author-section">
@@ -547,7 +632,7 @@ export const ReportDetailPage = () => {
                       <div className="review-rating-section">
                         <div className="review-stars">
                           {Array.from({ length: 5 }).map((_, i) => (
-                            <StarIcon key={i} size={16} color={i < review.rating ? '#f59e0b' : '#e2e8f0'} />
+                            <StarIcon key={i} size={16} color={i < review.rating ? '#fbbf24' : '#e2e8f0'} />
                           ))}
                         </div>
                         <span className="review-rating-value">{review.rating}.0</span>
@@ -562,7 +647,7 @@ export const ReportDetailPage = () => {
                           <span
                             key={cat}
                             className="review-category-badge"
-                            style={{ backgroundColor: `${categoryColors[cat]}15`, color: categoryColors[cat] }}
+                            style={{ backgroundColor: `${categoryColors[cat]}18`, color: categoryColors[cat] }}
                           >
                             {categoryLabels[cat]}
                           </span>

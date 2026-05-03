@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"reviews-ai/internal/application/usecase"
 	"reviews-ai/internal/domain/entity"
+	"reviews-ai/internal/infrastructure/parser"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -11,10 +14,34 @@ import (
 
 type LocationHandler struct {
 	locationUseCase *usecase.LocationUseCase
+	twoGisParser    *parser.TwoGisParser
 }
 
-func NewLocationHandler(locationUseCase *usecase.LocationUseCase) *LocationHandler {
-	return &LocationHandler{locationUseCase: locationUseCase}
+func NewLocationHandler(locationUseCase *usecase.LocationUseCase, twoGisParser *parser.TwoGisParser) *LocationHandler {
+	return &LocationHandler{
+		locationUseCase: locationUseCase,
+		twoGisParser:    twoGisParser,
+	}
+}
+
+func (h *LocationHandler) FindTwoGisURL(c *gin.Context) {
+	name := c.Query("name")
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	address := c.Query("address")
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 35*time.Second)
+	defer cancel()
+
+	firmURL, err := h.twoGisParser.FindOrgURL(ctx, name, address)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"url": ""})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"url": firmURL})
 }
 
 func (h *LocationHandler) CreateLocation(c *gin.Context) {

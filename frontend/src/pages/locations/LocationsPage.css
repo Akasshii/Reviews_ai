@@ -226,6 +226,12 @@
   margin: 0;
 }
 
+.selected-org-twogis-status {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin: 4px 0 0 0;
+}
+
 .selected-org-actions {
   display: flex;
   gap: var(--spacing-md);
@@ -254,6 +260,16 @@
   background-color: rgba(46, 139, 87, 0.08);
   color: #1a6b42;
   border: 1px dashed rgba(46, 139, 87, 0.3);
+}
+
+.platform-badge--2gis-missing {
+  background-color: rgba(0, 0, 0, 0.04);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 /* 2GIS URL field feedback */
