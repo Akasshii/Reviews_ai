@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent, Button } from '../../shared/u
 import { StarIcon, CalendarIcon, DownloadIcon, BarChartIcon } from '../../shared/ui';
 import { reportApi } from '../../shared/api/reportApi';
 import { normalizeReport } from '../../shared/lib/reportHelpers';
-import { exportReportPdf } from '../../shared/lib/exportPdf';
+import { PdfExportModal } from './PdfExportModal';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import type { ReviewCategory, Report, CategoryStats } from '../../shared/types';
@@ -72,6 +72,7 @@ export const ReportDetailPage = () => {
   const [reviewDateFrom, setReviewDateFrom] = useState<string>('');
   const [reviewDateTo, setReviewDateTo] = useState<string>('');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   useEffect(() => { if (id) loadReport(id); }, [id]);
 
@@ -213,7 +214,7 @@ export const ReportDetailPage = () => {
       <div className="report-detail-header">
         <Button variant="ghost" onClick={() => navigate('/reports')}>← Назад к отчетам</Button>
         <div className="report-detail-actions">
-          <Button variant="outline" icon={<DownloadIcon size={18} />} onClick={() => exportReportPdf(report)}>Экспорт PDF</Button>
+          <Button variant="outline" icon={<DownloadIcon size={18} />} onClick={() => setShowPdfModal(true)}>Экспорт PDF</Button>
         </div>
       </div>
 
@@ -670,6 +671,10 @@ export const ReportDetailPage = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {showPdfModal && (
+        <PdfExportModal report={report} onClose={() => setShowPdfModal(false)} />
       )}
     </div>
   );
