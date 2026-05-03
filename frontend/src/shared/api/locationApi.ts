@@ -21,4 +21,11 @@ export const locationApi = {
   deleteLocation: async (id: string): Promise<void> => {
     return apiClient.delete<void>(`/locations/${id}`, true);
   },
+
+  findTwoGisUrl: async (name: string, address?: string): Promise<string> => {
+    const params = new URLSearchParams({ name });
+    if (address) params.append('address', address);
+    const data = await apiClient.get<{ url: string }>(`/locations/find-2gis?${params}`, true);
+    return data.url ?? '';
+  },
 };

@@ -359,3 +359,9 @@ func (p *TwoGisParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, 
 
 	return reviews, nil
 }
+
+// FindOrgURL searches 2GIS by org name (+ optional address) and returns the direct firm URL.
+// Uses the 2GIS Catalog API when TWOGIS_API_KEY is set; returns "" if not found.
+func (p *TwoGisParser) FindOrgURL(ctx context.Context, name, address string) (string, error) {
+	return globalTwoGisAPIClient.findFirmURL(ctx, name, address)
+}
