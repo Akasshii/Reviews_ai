@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '../../shared/ui';
 import { UserIcon, MailIcon } from '../../shared/ui';
 import { authApi } from '../../shared/api/authApi';
 import { userApi } from '../../shared/api/userApi';
 import { reportApi } from '../../shared/api/reportApi';
 import './ProfilePage.css';
+
+const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3001/api').replace(/\/api$/, '');
 
 export const ProfilePage = () => {
   const currentUser = authApi.getCurrentUser();
@@ -17,6 +19,11 @@ export const ProfilePage = () => {
 
   const [displayName, setDisplayName] = useState(currentUser?.name || '');
   const [displayEmail, setDisplayEmail] = useState(currentUser?.email || '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(currentUser?.avatar ? BACKEND_ORIGIN + currentUser.avatar : null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSuccessMsg] = useState(false);
@@ -30,6 +37,7 @@ export const ProfilePage = () => {
       setPosition(profile.position || '');
       setDisplayName(profile.name);
       setDisplayEmail(profile.email);
+      if (profile.avatar) setAvatarUrl(BACKEND_ORIGIN + profile.avatar);
     }).catch(() => {
       // fallback to localStorage data already set
     });
@@ -43,6 +51,33 @@ export const ProfilePage = () => {
       // keep defaults (zeros)
     });
   }, []);
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Файл превышает 5 МБ');
+      return;
+    }
+
+    try {
+      setAvatarUploading(true);
+      setAvatarError(null);
+      const updated = await userApi.uploadAvatar(file);
+      if (updated.avatar) {
+        const fullUrl = BACKEND_ORIGIN + updated.avatar;
+        setAvatarUrl(fullUrl);
+        authApi.updateCurrentUser({ avatar: updated.avatar });
+        window.dispatchEvent(new CustomEvent('userUpdated'));
+      }
+    } catch (err: any) {
+      setAvatarError(err.message || 'Ошибка загрузки фото');
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -90,16 +125,44 @@ export const ProfilePage = () => {
       <div className="profile-content">
         <Card padding="lg" className="profile-card">
           <div className="profile-avatar-section">
-            <div className="profile-avatar">
-              <UserIcon size={48} />
+            <div
+              className="profile-avatar profile-avatar--clickable"
+              onClick={() => fileInputRef.current?.click()}
+              title="Нажмите для смены фото"
+            >
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="avatar" className="profile-avatar-img" />
+              ) : (
+                <UserIcon size={48} />
+              )}
+              <div className="profile-avatar-overlay">
+                {avatarUploading ? '...' : '✎'}
+              </div>
             </div>
             <div className="profile-avatar-info">
               <h2 className="profile-name">{displayName}</h2>
               <p className="profile-email">{displayEmail}</p>
             </div>
-            <Button variant="outline" size="sm">
-              Изменить фото
-            </Button>
+            <div className="profile-avatar-actions">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                loading={avatarUploading}
+              >
+                Изменить фото
+              </Button>
+              {avatarError && (
+                <p className="profile-avatar-error">{avatarError}</p>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              style={{ display: 'none' }}
+              onChange={handleAvatarFileChange}
+            />
           </div>
         </Card>
 
