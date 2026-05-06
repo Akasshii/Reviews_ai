@@ -192,7 +192,14 @@ func (p *YandexParser) parseReviewsInternal(ctx context.Context, url string, opt
 		}
 	}
 
-	log.Printf("[YandexParser] Returning %d reviews (skipped: %d before period, %d after period, %d unknown date, %d duplicates)", len(result), skippedBefore, skippedAfter, skippedUnknownDate, skippedDuplicates)
+	log.Printf("[YandexParser] RESULT: %d kept | skipped: %d before-period, %d after-period, %d unknown-date, %d duplicates | total-raw: %d",
+		len(result), skippedBefore, skippedAfter, skippedUnknownDate, skippedDuplicates, len(rawReviews))
+
+	if skippedBefore+skippedAfter > len(result) {
+		log.Printf("[YandexParser] HINT: most reviews are outside the requested period. "+
+			"Period: %s — %s. Check if there really are reviews in this period on Yandex Maps.",
+			opts.PeriodStart.Format("2006-01-02"), opts.PeriodEnd.Format("2006-01-02"))
+	}
 	return result, nil
 }
 
@@ -267,109 +274,105 @@ func (p *YandexParser) waitForReviews(ctx context.Context) error {
 	return fmt.Errorf("reviews not found after 20 attempts")
 }
 
-// scrollToLoadReviews scrolls the reviews container to trigger infinite scroll loading.
-// Uses Go-side polling loop to avoid Promise serialization issues with chromedp.
-func (p *YandexParser) scrollToLoadReviews(ctx context.Context, maxReviews int) error {
-	// JS to scroll the container once and return current review count
-	scrollOnceJS := `
-	(function() {
-		var findScrollContainer = function() {
-			var candidates = [
-				document.querySelector('[class*="scroll-container"]'),
-				document.querySelector('[class*="sidebar-view__panel"]'),
-				document.querySelector('[class*="orgpage-reviews"]'),
-				document.querySelector('[class*="card-section-group"]'),
-				document.querySelector('[class*="tabs-pane"]')
-			];
-			for (var i = 0; i < candidates.length; i++) {
-				if (candidates[i] && candidates[i].scrollHeight > candidates[i].clientHeight) return candidates[i];
-			}
-			var all = document.querySelectorAll('div');
-			var best = null;
-			var bestDiff = 0;
-			for (var j = 0; j < all.length; j++) {
-				var diff = all[j].scrollHeight - all[j].clientHeight;
-				if (diff > 100 && diff > bestDiff) {
-					var style = window.getComputedStyle(all[j]);
-					if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-						best = all[j];
-						bestDiff = diff;
-					}
+// scrollAndCountJS is a self-contained JS snippet: finds the scroll container,
+// scrolls it by 500px, then counts visible review elements using multiple selectors.
+// Returns the integer count directly — no string parsing needed.
+const scrollAndCountJS = `
+(function() {
+	var container = null;
+
+	var named = [
+		'[class*="sidebar-view__panel"]',
+		'[class*="scroll__container"]',
+		'[class*="orgpage-reviews"]',
+		'[class*="card-section-group"]',
+		'[class*="tabs-pane"]',
+		'[class*="scroll-container"]'
+	];
+	for (var i = 0; i < named.length; i++) {
+		var el = document.querySelector(named[i]);
+		if (el && el.scrollHeight - el.clientHeight > 200) { container = el; break; }
+	}
+
+	if (!container) {
+		var divs = document.querySelectorAll('div');
+		var bestDiff = 300;
+		for (var j = 0; j < divs.length; j++) {
+			var diff = divs[j].scrollHeight - divs[j].clientHeight;
+			if (diff > bestDiff) {
+				var ov = window.getComputedStyle(divs[j]).overflowY;
+				if (ov === 'auto' || ov === 'scroll') {
+					container = divs[j];
+					bestDiff = diff;
 				}
 			}
-			return best;
-		};
-
-		var container = findScrollContainer();
-		if (!container) return 'no-scroll-container:0';
-
-		container.scrollTop = container.scrollHeight;
-
-		var reviewSelectors = [
-			'.business-review-view__info',
-			'[itemprop="review"]',
-			'[data-review-id]'
-		];
-		var count = 0;
-		for (var k = 0; k < reviewSelectors.length; k++) {
-			var els = document.querySelectorAll(reviewSelectors[k]);
-			if (els.length > count) count = els.length;
 		}
-		return 'ok:' + count;
-	})()
-	`
-
-	maxScrolls := maxReviews / 5
-	if maxScrolls < 5 {
-		maxScrolls = 5
 	}
-	if maxScrolls > 50 {
-		maxScrolls = 50
+
+	if (container) {
+		container.scrollTop += 500;
+	}
+	window.scrollBy(0, 300);
+
+	var selectors = [
+		'[itemprop="review"]',
+		'[data-review-id]',
+		'[class*="business-review-view"]',
+		'[class*="orgpage-reviews-card"]'
+	];
+	var max = 0;
+	for (var k = 0; k < selectors.length; k++) {
+		var n = document.querySelectorAll(selectors[k]).length;
+		if (n > max) max = n;
+	}
+	return max;
+})()
+`
+
+// scrollToLoadReviews performs incremental scrolling to trigger Yandex's lazy-load.
+func (p *YandexParser) scrollToLoadReviews(ctx context.Context, maxReviews int) error {
+	maxScrolls := maxReviews / 4
+	if maxScrolls < 10 {
+		maxScrolls = 10
+	}
+	if maxScrolls > 80 {
+		maxScrolls = 80
 	}
 
 	prevCount := 0
 	noChangeCount := 0
+	const stallLimit = 6
 
 	for i := 0; i < maxScrolls; i++ {
-		var result string
-		if err := chromedp.Run(ctx, chromedp.Evaluate(scrollOnceJS, &result)); err != nil {
-			return fmt.Errorf("scroll failed: %w", err)
+		var count int
+		if err := chromedp.Run(ctx, chromedp.Evaluate(scrollAndCountJS, &count)); err != nil {
+			return fmt.Errorf("scroll step %d failed: %w", i, err)
 		}
 
-		if strings.HasPrefix(result, "no-scroll-container") {
-			log.Println("[YandexParser] No scroll container found")
-			return nil
-		}
-
-		// Parse count from "ok:123"
-		count := 0
-		if parts := strings.SplitN(result, ":", 2); len(parts) == 2 {
-			count, _ = strconv.Atoi(parts[1])
-		}
+		log.Printf("[YandexParser] Scroll %d/%d: %d reviews in DOM", i+1, maxScrolls, count)
 
 		if count >= maxReviews {
-			log.Printf("[YandexParser] Scroll done: %d reviews loaded (target: %d)", count, maxReviews)
+			log.Printf("[YandexParser] Target reached: %d reviews", count)
 			return nil
 		}
 
-		if count == prevCount {
+		if count > prevCount {
+			noChangeCount = 0
+		} else {
 			noChangeCount++
-			if noChangeCount >= 3 {
-				log.Printf("[YandexParser] Scroll stopped: no new reviews after 3 scrolls (%d total)", count)
+			if noChangeCount >= stallLimit {
+				log.Printf("[YandexParser] Scroll stalled after %d unchanged steps, %d reviews in DOM", stallLimit, count)
 				return nil
 			}
-		} else {
-			noChangeCount = 0
 		}
 		prevCount = count
 
-		// Wait between scrolls
-		if err := chromedp.Run(ctx, chromedp.Sleep(1500*time.Millisecond)); err != nil {
+		if err := chromedp.Run(ctx, chromedp.Sleep(2*time.Second)); err != nil {
 			return err
 		}
 	}
 
-	log.Printf("[YandexParser] Scroll complete after %d iterations", maxScrolls)
+	log.Printf("[YandexParser] Scroll finished: %d reviews loaded", prevCount)
 	return nil
 }
 
@@ -482,7 +485,7 @@ func (p *YandexParser) extractReviewsFromDOM(ctx context.Context) ([]rawReview, 
 				const textEl = el.querySelector('[class*="review-text"], [class*="review-body"], [class*="comment-text"]');
 				if (textEl) review.text = textEl.textContent.trim();
 			}
-			if (!review.text) continue; // Skip reviews without text
+			if (!review.text) review.text = ''; // keep rating-only reviews
 
 			// 4. DATE — use meta itemprop="datePublished" (ISO format, most reliable)
 			const dateMeta = el.querySelector('meta[itemprop="datePublished"]');

@@ -66,6 +66,9 @@ func main() {
 	// Apply middleware
 	router.Use(middleware.CORSMiddleware())
 
+	// Static file serving for uploads
+	router.Static("/uploads", "./uploads")
+
 	// Health check
 	router.GET("/api/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -94,6 +97,7 @@ func main() {
 			user.GET("/profile", userHandler.GetProfile)
 			user.PUT("/profile", userHandler.UpdateProfile)
 			user.PUT("/password", userHandler.ChangePassword)
+			user.POST("/avatar", userHandler.UploadAvatar)
 		}
 
 		// Report routes

@@ -50,7 +50,7 @@ export const authApi = {
     return userStr ? JSON.parse(userStr) : null;
   },
 
-  updateCurrentUser: (updates: Partial<{ name: string; company: string }>) => {
+  updateCurrentUser: (updates: Partial<{ name: string; company: string; avatar: string }>) => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
       const user = JSON.parse(userStr);

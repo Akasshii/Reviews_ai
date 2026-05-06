@@ -80,6 +80,28 @@ class ApiClient {
   async delete<T>(endpoint: string, requiresAuth = false): Promise<T> {
     return this.request<T>(endpoint, { method: 'DELETE', requiresAuth });
   }
+
+  async postFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+    const token = this.getToken();
+    if (!token) throw new Error('No token provided');
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {}
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
