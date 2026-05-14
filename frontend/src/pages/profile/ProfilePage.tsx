@@ -27,7 +27,7 @@ export const ProfilePage = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSuccessMsg] = useState(false);
-  const [stats, setStats] = useState({ totalReviews: 0, totalReports: 0, platforms: 0 });
+  const [stats, setStats] = useState({ totalReviews: 0, totalReports: 0 });
 
   useEffect(() => {
     userApi.getProfile().then((profile) => {
@@ -44,9 +44,7 @@ export const ProfilePage = () => {
 
     reportApi.getReports().then((reports) => {
       const totalReviews = reports.reduce((sum, r) => sum + (r.totalReviews || r.stats?.totalReviews || 0), 0);
-      const platformsSet = new Set<string>();
-      reports.forEach(r => { if (r.platform && r.platform !== 'all') platformsSet.add(r.platform); });
-      setStats({ totalReviews, totalReports: reports.length, platforms: platformsSet.size });
+      setStats({ totalReviews, totalReports: reports.length });
     }).catch(() => {
       // keep defaults (zeros)
     });
@@ -247,10 +245,6 @@ export const ProfilePage = () => {
               <div className="profile-stat">
                 <span className="profile-stat-value">{stats.totalReports}</span>
                 <span className="profile-stat-label">Отчетов создано</span>
-              </div>
-              <div className="profile-stat">
-                <span className="profile-stat-value">{stats.platforms}</span>
-                <span className="profile-stat-label">Подключено платформ</span>
               </div>
             </div>
           </CardContent>
