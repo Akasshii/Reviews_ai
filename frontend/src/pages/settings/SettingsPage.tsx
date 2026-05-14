@@ -7,7 +7,6 @@ export const SettingsPage = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [notifications, setNotifications] = useState({
     emailReports: true,
-    emailNewReviews: false,
     emailWeeklySummary: true,
   });
 
@@ -60,25 +59,6 @@ export const SettingsPage = () => {
                     checked={notifications.emailReports}
                     onChange={(e) =>
                       setNotifications({ ...notifications, emailReports: e.target.checked })
-                    }
-                  />
-                  <span className="toggle-slider"></span>
-                </label>
-              </div>
-
-              <div className="setting-toggle">
-                <div className="setting-info">
-                  <h4 className="setting-title">Email уведомления о новых отзывах</h4>
-                  <p className="setting-description">
-                    Получать уведомления о каждом новом отзыве
-                  </p>
-                </div>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={notifications.emailNewReviews}
-                    onChange={(e) =>
-                      setNotifications({ ...notifications, emailNewReviews: e.target.checked })
                     }
                   />
                   <span className="toggle-slider"></span>
